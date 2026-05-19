@@ -36,14 +36,11 @@ export default function Navbar() {
   };
 
   // --- 🌟 物理引擎：手机端按钮拖拽逻辑 ---
-  // 使用 MotionValue 记录 Y 轴偏移
   const dragY = useMotionValue(0);
-  // 约束范围状态（防止拖出屏幕）
   const [constraints, setConstraints] = useState({ top: 0, bottom: 0 });
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // 按钮高度是 112px (h-28)，我们给上下留一点安全边距
       const vh = window.innerHeight;
       setConstraints({
         top: -(vh / 2) + 80,
@@ -77,11 +74,15 @@ export default function Navbar() {
     { name: '归档', href: '/timeline' },
     { name: '照片墙', href: '/photowall' },
     { name: '音乐', href: '/music' },
+    { name: '灵境', href: '/tree' },
     { name: '说说', href: '/moments' },
     { name: '杂谈', href: '/chatter' },
     { name: '友链', href: '/friends' },
     { name: '关于', href: '/about' },
   ];
+
+  // 🌟 核心：过滤掉“灵境”，专供手机端使用，保证圆盘自动重新均匀排布
+  const mobileNavLinks = navLinks.filter(link => link.href !== '/tree');
 
   return (
     <>
@@ -94,6 +95,7 @@ export default function Navbar() {
             {siteConfig.navAfter || '宝藏之地'}
           </Link>
           <nav className="flex gap-8 text-sm font-bold">
+            {/* PC端依然使用全量的 navLinks */}
             {navLinks.map((link) => {
               const isActive = pathname === link.href || pathname === `${link.href}/`;
               return (
@@ -110,13 +112,12 @@ export default function Navbar() {
       {/* 📱 手机端：可拖拽吸附的触发球 */}
       <div className="md:hidden">
         <motion.button
-          drag="y" // 🌟 允许垂直拖拽
-          dragConstraints={constraints} // 🌟 限制在屏幕内
+          drag="y"
+          dragConstraints={constraints}
           dragElastic={0.1}
-          dragMomentum={false} // 🌟 松手即停，实现位置吸附
+          dragMomentum={false}
           style={{ y: dragY }}
           onClick={() => {
-            // 只有当拖拽位移很小时才判定为点击，防止误触
             if (Math.abs(dragY.getVelocity()) < 10) {
               setIsMobileMenuOpen(true);
             }
@@ -130,7 +131,7 @@ export default function Navbar() {
           </div>
         </motion.button>
 
-        {/* 2. 居中展开的巨型全圆转轴 (逻辑保持不变) */}
+        {/* 2. 居中展开的巨型全圆转轴 */}
         <AnimatePresence>
           {isMobileMenuOpen && (
             <>
@@ -161,9 +162,11 @@ export default function Navbar() {
                     </button>
                   </div>
 
-                  {navLinks.map((link, index) => {
+                  {/* 🌟 手机端轮盘渲染：使用过滤后的 mobileNavLinks */}
+                  {mobileNavLinks.map((link, index) => {
                     const isActive = pathname === link.href || pathname === `${link.href}/`;
-                    const angle = index * (360 / navLinks.length);
+                    // 🌟 角度计算也会基于过滤后的长度，保证图标自动均匀排布！
+                    const angle = index * (360 / mobileNavLinks.length);
 
                     return (
                       <div
