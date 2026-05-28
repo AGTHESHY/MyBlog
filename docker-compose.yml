@@ -52,6 +52,10 @@ services:
       MYSQL_USER: root
       MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-xhblogs}
+      NETEASE_APP_ID: ${NETEASE_APP_ID:-}
+      NETEASE_APP_SECRET: ${NETEASE_APP_SECRET:-}
+      NETEASE_PRIVATE_KEY: ${NETEASE_PRIVATE_KEY:-}
+      NETEASE_DEVICE_ID: ${NETEASE_DEVICE_ID:-}
     depends_on:
       mysql:
         condition: service_healthy
@@ -74,6 +78,10 @@ services:
       MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-xhblogs}
       CMS_API_PORT: ${CMS_API_PORT:-8000}
+      NETEASE_APP_ID: ${NETEASE_APP_ID:-}
+      NETEASE_APP_SECRET: ${NETEASE_APP_SECRET:-}
+      NETEASE_PRIVATE_KEY: ${NETEASE_PRIVATE_KEY:-}
+      NETEASE_DEVICE_ID: ${NETEASE_DEVICE_ID:-}
     depends_on:
       mysql:
         condition: service_healthy

@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useRef, useEffect, ReactNode } from 'react';
 import { siteConfig } from '../siteConfig';
-import { fetchMetingSong, mapMetingToPlaylistItem } from '../lib/netease-music';
+import { filterValidNeteaseSongIds, mapPlayableToPlaylistItem } from '../lib/netease-music';
 
 type LoadStatus = 'loading' | 'ready' | 'empty' | 'failed';
 
@@ -83,12 +83,12 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
       setLoadStatus('loading');
       try {
-        let musicIds = [...(siteConfig.cloudMusicIds || [])];
+        let musicIds = filterValidNeteaseSongIds([...(siteConfig.cloudMusicIds || [])].map(String));
         try {
           const cfgRes = await fetch('/api/site/cloud-music-ids', { cache: 'no-store' });
           const cfgJson = await cfgRes.json();
           if (cfgJson?.success && Array.isArray(cfgJson.data?.ids)) {
-            musicIds = cfgJson.data.ids;
+            musicIds = filterValidNeteaseSongIds(cfgJson.data.ids.map(String));
           }
         } catch {
           // 回退 siteConfig
@@ -106,9 +106,14 @@ export function MusicProvider({ children }: { children: ReactNode }) {
 
         const results = await Promise.all(
           musicIds.map(async (id) => {
-            const song = await fetchMetingSong(id);
-            if (!song?.url) return null;
-            return mapMetingToPlaylistItem(song, id);
+            try {
+              const res = await fetch(`/api/music/play/${encodeURIComponent(id)}`, { cache: 'no-store' });
+              const json = await res.json();
+              if (!json?.success || !json.data?.src) return null;
+              return mapPlayableToPlaylistItem(json.data);
+            } catch {
+              return null;
+            }
           })
         );
 
@@ -121,7 +126,9 @@ export function MusicProvider({ children }: { children: ReactNode }) {
             setLoadMessage('');
           } else {
             setLoadStatus('failed');
-            setLoadMessage(`已配置 ${musicIds.length} 首，但无法获取播放地址。`);
+            setLoadMessage(
+              `已配置 ${musicIds.length} 首，但无法获取播放地址。请确认网易云数字 ID，并配置 NETEASE_APP_ID / NETEASE_APP_SECRET / NETEASE_PRIVATE_KEY。`
+            );
             setCurrentLyric('云端链路受阻');
           }
           setIsLoading(false);

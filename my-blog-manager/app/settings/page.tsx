@@ -18,6 +18,12 @@ import DanmakuSection from '../../components/settings/DanmakuSection';
 import FooterSection from '../../components/settings/FooterSection';
 // 👇 🌟 引入刚写的 AI 配置组件
 import AICatSection from '../../components/settings/AICatSection';
+import {
+  describeInvalidMusicId,
+  filterValidNeteaseSongIds,
+  normalizeNeteaseSongId,
+  type NeteaseSongMeta,
+} from '../../lib/netease-music';
 
 function SettingsContent() {
   const { operations, addOperation } = useOperations();
@@ -30,7 +36,7 @@ function SettingsContent() {
     avatarUrl: siteConfig.avatarUrl || "",
     social: siteConfig.social || {},
     cloudMusicIds: [...(siteConfig.cloudMusicIds || [])],
-    newMusicId: '',
+    musicSearchQuery: '',
     bgImages: [...(siteConfig.bgImages || [])],
     gitalkConfig: siteConfig.gitalkConfig || {
       clientID: '',
@@ -52,8 +58,8 @@ function SettingsContent() {
     }
   });
 
-  const [queryLoading, setQueryLoading] = useState(false);
-  const [queryResult, setQueryResult] = useState<any>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchResults, setSearchResults] = useState<NeteaseSongMeta[]>([]);
   const [musicDetails, setMusicDetails] = useState<Record<string, any>>({});
 
   useEffect(() => {
@@ -104,11 +110,16 @@ function SettingsContent() {
   };
 
   const saveCloudMusicIds = async () => {
+    const cleaned = filterValidNeteaseSongIds(formData.cloudMusicIds || []);
+    if (cleaned.length !== (formData.cloudMusicIds?.length || 0)) {
+      handleUpdate('cloudMusicIds', cleaned);
+      showToast('已自动移除无效的酷狗/非数字 ID', 'warning');
+    }
     try {
       const res = await fetch('/api/config/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ updates: { cloudMusicIds: formData.cloudMusicIds } }),
+        body: JSON.stringify({ updates: { cloudMusicIds: cleaned } }),
       });
       const data = await res.json();
       if (!data.success) {
@@ -125,13 +136,19 @@ function SettingsContent() {
     const loadInitialMusicDetails = async () => {
       const details: Record<string, any> = { ...musicDetails };
       let hasUpdate = false;
-      for (const id of formData.cloudMusicIds || []) {
-        if (!details[id]) {
-          const info = await fetchMusicDetail(id);
-          if (info) {
-            details[id] = info;
-            hasUpdate = true;
-          }
+      for (const rawId of formData.cloudMusicIds || []) {
+        const id = String(rawId);
+        if (details[id]) continue;
+        const normalized = normalizeNeteaseSongId(id);
+        if (!normalized) {
+          details[id] = { error: true, id, name: describeInvalidMusicId(id) };
+          hasUpdate = true;
+          continue;
+        }
+        const info = await fetchMusicDetail(normalized);
+        if (info) {
+          details[id] = info;
+          hasUpdate = true;
         }
       }
       if (hasUpdate) setMusicDetails(details);
@@ -146,10 +163,15 @@ function SettingsContent() {
       showToast("ID不能为空哦", "warning");
       return;
     }
+    const normalized = normalizeNeteaseSongId(formData.newMusicId);
+    if (!normalized) {
+      showToast(describeInvalidMusicId(formData.newMusicId), "error");
+      return;
+    }
     setQueryLoading(true);
     setQueryResult(null);
 
-    const info = await fetchMusicDetail(formData.newMusicId);
+    const info = await fetchMusicDetail(normalized);
     if (info && !info.error) {
       setQueryResult(info);
       showToast("获取成功！", "success");

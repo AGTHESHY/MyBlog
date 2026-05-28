@@ -1,18 +1,19 @@
 import { siteConfig } from '../siteConfig';
 import { getSiteSetting } from './content-store';
+import { filterValidNeteaseSongIds } from './netease-music';
 
-/** 博客播放列表：优先 MySQL（管理后台写入），回退 siteConfig.ts */
+/** 博客播放列表：优先 MySQL（管理后台写入），回退 siteConfig.ts；仅保留合法网易云数字 ID */
 export async function getCloudMusicIds(): Promise<string[]> {
   const raw = await getSiteSetting('cloudMusicIds');
   if (raw) {
     try {
       const parsed = JSON.parse(raw) as unknown;
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map((id) => String(id).trim()).filter(Boolean);
+        return filterValidNeteaseSongIds(parsed.map((id) => String(id)));
       }
     } catch {
       // 非 JSON 时忽略
     }
   }
-  return [...(siteConfig.cloudMusicIds || [])].map((id) => String(id).trim()).filter(Boolean);
+  return filterValidNeteaseSongIds((siteConfig.cloudMusicIds || []).map((id) => String(id)));
 }

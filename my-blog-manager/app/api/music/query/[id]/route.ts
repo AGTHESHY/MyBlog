@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
-import { fetchNeteaseSongMeta } from '../../../../../lib/netease-music';
+import {
+  describeInvalidMusicId,
+  fetchNeteaseSongMeta,
+  normalizeNeteaseSongId,
+} from '../../../../../lib/netease-music';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,9 +11,13 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await context.params;
-  if (!id?.trim()) {
-    return NextResponse.json({ success: false, message: '缺少歌曲 ID' }, { status: 400 });
+  const { id: raw } = await context.params;
+  const id = normalizeNeteaseSongId(raw || '');
+  if (!id) {
+    return NextResponse.json(
+      { success: false, message: describeInvalidMusicId(raw || '') },
+      { status: 400 }
+    );
   }
 
   try {

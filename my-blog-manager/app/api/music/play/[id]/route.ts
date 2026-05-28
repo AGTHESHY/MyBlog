@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import {
   describeInvalidMusicId,
-  fetchNeteaseSongMeta,
+  fetchNeteaseSongPlayable,
   normalizeNeteaseSongId,
 } from '../../../../../lib/netease-music';
 
@@ -21,16 +21,16 @@ export async function GET(
   }
 
   try {
-    const data = await fetchNeteaseSongMeta(id);
-    if (!data) {
+    const data = await fetchNeteaseSongPlayable(id);
+    if (!data?.src) {
       return NextResponse.json(
-        { success: false, message: '未找到该歌曲，可能是 VIP 歌曲或 ID 错误' },
+        { success: false, message: '无法获取播放地址，请检查开放平台凭证或歌曲 ID' },
         { status: 404 }
       );
     }
     return NextResponse.json({ success: true, data });
   } catch (error) {
-    const message = error instanceof Error ? error.message : '网易云接口请求失败';
+    const message = error instanceof Error ? error.message : '音乐服务异常';
     return NextResponse.json({ success: false, message }, { status: 500 });
   }
 }
