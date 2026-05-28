@@ -1,6 +1,3 @@
-import fs from 'fs';
-import path from 'path';
-import matter from 'gray-matter';
 import Link from 'next/link';
 
 import { unified } from 'unified';
@@ -23,18 +20,11 @@ import ClientTOC from '../../../components/ClientTOC';
 import BackButton from '../../../components/BackButton';
 import Comments from '../../../components/Comments';
 import SidebarLyric from '../../../components/SidebarLyric';
+import { getPostBySlug, getRecentPosts, listPostSlugs } from '../../../lib/content-store';
 
 export async function generateStaticParams() {
-  const postsDirectory = path.join(process.cwd(), 'posts');
-  if (!fs.existsSync(postsDirectory)) return [];
-
-  const filenames = fs.readdirSync(postsDirectory);
-
-  return filenames
-    .filter((name) => name.endsWith('.md'))
-    .map((name) => ({
-      slug: name.replace(/\.md$/, ''),
-    }));
+  const slugs = await listPostSlugs();
+  return slugs.map((slug) => ({ slug }));
 }
 
 function extractToc(content: string) {
@@ -52,9 +42,9 @@ function extractToc(content: string) {
 }
 
 async function getPostData(slug: string) {
-  const fullPath = path.join(process.cwd(), 'posts', `${slug}.md`);
-  const fileContents = fs.readFileSync(fullPath, 'utf8');
-  let { data, content } = matter(fileContents);
+  const dbPost = await getPostBySlug(slug);
+  if (!dbPost) return null;
+  let content = dbPost.content || '';
 
   // ==========================================
   // 🌟 前台渲染清洗区：终极防吞换行补丁！
@@ -104,30 +94,20 @@ async function getPostData(slug: string) {
     slug,
     contentHtml: processedContent.toString(),
     toc: extractToc(content),
-    title: data.title,
-    date: data.date,
-    tags: data.tags && Array.isArray(data.tags) ? data.tags : [],
-    cover: data.cover || siteConfig.defaultPostCover
+    title: dbPost.title,
+    date: dbPost.date,
+    tags: dbPost.tags && Array.isArray(dbPost.tags) ? dbPost.tags : [],
+    cover: dbPost.cover || siteConfig.defaultPostCover
   };
-}
-
-function getRecentPosts(currentSlug: string) {
-  const postsDirectory = path.join(process.cwd(), 'posts');
-  let fileNames: string[] = [];
-  try { fileNames = fs.readdirSync(postsDirectory).filter(f => f.endsWith('.md')); } catch(e) {}
-  if (!fileNames) return [];
-  return fileNames.map(f => {
-    const s = f.replace(/\.md$/, '');
-    const c = fs.readFileSync(path.join(postsDirectory, f), 'utf8');
-    const { data } = matter(c);
-    return { slug: s, title: data.title || '无标题', date: data.date };
-  }).filter(p => p.slug !== currentSlug).slice(0, 3);
 }
 
 export default async function Post({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = await params;
   const postData = await getPostData(resolvedParams.slug);
-  const recentPosts = getRecentPosts(resolvedParams.slug);
+  if (!postData) {
+    return <div className="min-h-screen flex items-center justify-center text-slate-500">文章不存在</div>;
+  }
+  const recentPosts = await getRecentPosts(resolvedParams.slug);
 
   return (
     <div className="min-h-screen relative pb-20">

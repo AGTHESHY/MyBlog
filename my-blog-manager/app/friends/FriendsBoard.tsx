@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import BackButton from '../../components/BackButton';
-import { friendsData as initialFriends, Friend } from '../../data/friends';
 import { Plus, Pencil, Trash2, AlertTriangle, Save, Edit3, X, CloudUpload, Sparkles } from 'lucide-react';
 import { useOperations } from '../../context/OperationContext';
 import { useToast } from '../../components/ToastProvider';
@@ -12,6 +11,9 @@ import FloatingImageTool from '../../components/editor/FloatingImageTool';
 // 🌟 新增：引入配置和评论组件
 import Comments from '../../components/Comments';
 import { siteConfig } from '../../siteConfig';
+import { useEffect } from 'react';
+
+type Friend = { id: string; name: string; url: string; description: string; avatar: string; themeColor: string };
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -27,7 +29,16 @@ export default function FriendsBoard() {
   const { addOperation } = useOperations();
   const { showToast } = useToast();
 
-  const [editableFriends, setEditableFriends] = useState<Friend[]>(initialFriends);
+  const [editableFriends, setEditableFriends] = useState<Friend[]>([]);
+
+  useEffect(() => {
+    fetch('/api/content/friends')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json?.success && Array.isArray(json.data)) setEditableFriends(json.data);
+      })
+      .catch(() => {});
+  }, []);
 
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null; name: string | null }>({ isOpen: false, id: null, name: null });
   const [friendModal, setFriendModal] = useState<{ isOpen: boolean; mode: 'add' | 'edit'; data: Partial<Friend> }>({ isOpen: false, mode: 'add', data: {} });

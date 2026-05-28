@@ -1,7 +1,4 @@
 // src/app/about/page.tsx
-import fs from 'fs';
-import path from 'path';
-import matter from 'gray-matter';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm'; // 🌟 引入 GFM 以支持 ~~删除线~~
@@ -19,37 +16,14 @@ import Navbar from '../../components/Navbar';
 import PageTransition from '../../components/PageTransition';
 import AboutClient from '../../components/AboutClient';
 import { Suspense } from 'react';
-
-function getDirActivities(dirName: string, typeLabel: '文章' | '杂谈' | '说说', linkPrefix: string) {
-  const dirPath = path.join(process.cwd(), dirName);
-  if (!fs.existsSync(dirPath)) return [];
-
-  const files = fs.readdirSync(dirPath).filter(f => f.endsWith('.md'));
-
-  return files.map(file => {
-    const content = fs.readFileSync(path.join(dirPath, file), 'utf8');
-    const { data } = matter(content);
-    return {
-      id: `${dirName}-${file}`,
-      type: typeLabel,
-      title: data.title || file.replace('.md', ''),
-      date: data.date ? new Date(data.date).toISOString() : '1970-01-01T00:00:00Z',
-      url: `/${linkPrefix}/${file.replace('.md', '')}`
-    };
-  });
-}
+import { getChatters, getMoments, getPosts, getSiteSetting } from '../../lib/content-store';
 
 export default async function AboutPage() {
-  const fullPath = path.join(process.cwd(), 'app', 'about', 'about.md');
-  let contentHtml = "博主很懒，还没有写自我介绍哦...";
-  let coverImage = "https://bu.dusays.com/2026/03/24/69c23dc278c78.jpg";
+  let content = (await getSiteSetting('about_markdown')) || '博主很懒，还没有写自我介绍哦...';
+  let contentHtml = '博主很懒，还没有写自我介绍哦...';
+  let coverImage = (await getSiteSetting('about_cover')) || "https://bu.dusays.com/2026/03/24/69c23dc278c78.jpg";
 
   try {
-    const fileContents = fs.readFileSync(fullPath, 'utf8');
-    // 🌟 改为 let，以便进行文本预清洗
-    let { data, content } = matter(fileContents);
-    if (data.cover) coverImage = data.cover;
-
     // ==========================================
     // 🌟 解析前物理清洗区
     // ==========================================
@@ -91,9 +65,27 @@ export default async function AboutPage() {
     console.error("读取 about.md 失败", e);
   }
 
-  const posts = getDirActivities('posts', '文章', 'posts');
-  const chatters = getDirActivities('chatters', '杂谈', 'chatter');
-  const moments = getDirActivities('moments', '说说', 'moments');
+  const posts = (await getPosts()).map((p) => ({
+    id: `posts-${p.slug}`,
+    type: '文章',
+    title: p.title || p.slug,
+    date: new Date(p.date || '1970-01-01').toISOString(),
+    url: `/posts/${p.slug}`
+  }));
+  const chatters = (await getChatters()).map((c) => ({
+    id: `chatters-${c.slug}`,
+    type: '杂谈',
+    title: c.title || c.slug,
+    date: new Date(c.date || '1970-01-01').toISOString(),
+    url: `/chatter/${c.slug}`
+  }));
+  const moments = (await getMoments()).map((m) => ({
+    id: `moments-${m.id}`,
+    type: '说说',
+    title: m.content?.slice(0, 20) || m.id,
+    date: new Date(m.date || '1970-01-01').toISOString(),
+    url: `/moments`
+  }));
 
   const allActivities = [...posts, ...chatters, ...moments].sort((a, b) => {
     return new Date(b.date).getTime() - new Date(a.date).getTime();

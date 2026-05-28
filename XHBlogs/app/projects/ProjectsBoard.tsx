@@ -3,9 +3,9 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import BackButton from '../../components/BackButton'; // 注意层级路径
-import { projectsData } from '../../data/projects';
+type Project = { id: string; name: string; description: string; icon: string; githubUrl: string; tags: string[] };
 
-export default function ProjectsBoard() {
+export default function ProjectsBoard({ projectsData }: { projectsData: Project[] }) {
   const [searchQuery, setSearchQuery] = useState("");
 
   // 搜索过滤逻辑

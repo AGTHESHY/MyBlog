@@ -52,11 +52,7 @@ export default function ChatterBoard({ chatters: initialChatters }: { chatters: 
     const slug = deleteModal.slug;
 
     try {
-      const configRes = await fetch(`/backend_config.json?t=${Date.now()}`);
-      const config = await configRes.json();
-
-      // 调用全能删除接口
-      const res = await fetch(`http://127.0.0.1:${config.api_port}/api/drafts/delete`, {
+      const res = await fetch(`/api/drafts/delete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: slug }) // 这里传的是 slug (即 md 的文件名)
@@ -70,7 +66,7 @@ export default function ChatterBoard({ chatters: initialChatters }: { chatters: 
         showToast("❌ 销毁失败: " + data.message, "error");
       }
     } catch (err) {
-      showToast("❌ 无法连接到 Python 引擎", "error");
+      showToast("❌ 无法连接到服务端接口", "error");
     } finally {
       setDeleteModal({ isOpen: false, slug: null, title: null });
     }

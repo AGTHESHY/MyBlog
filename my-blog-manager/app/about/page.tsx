@@ -1,6 +1,3 @@
-import fs from 'fs';
-import path from 'path';
-import matter from 'gray-matter';
 import Link from 'next/link';
 import { Suspense } from 'react';
 
@@ -19,43 +16,17 @@ import 'katex/dist/katex.min.css';
 import Navbar from '../../components/Navbar';
 import PageTransition from '../../components/PageTransition';
 import { siteConfig } from '../../siteConfig';
+import { getChatters, getMoments, getPosts, getSiteSetting } from '../../lib/content-store';
 
 // 🌟 引入刚刚写好的前端交互引擎
 import AboutClient from '../../components/AboutClient';
 
-// 🌟 读取指定目录下的 markdown 文件，并提取属性
-function getDirActivities(dirName: string, typeLabel: '文章' | '杂谈' | '说说', linkPrefix: string) {
-  const dirPath = path.join(process.cwd(), dirName);
-  if (!fs.existsSync(dirPath)) return [];
-
-  const files = fs.readdirSync(dirPath).filter(f => f.endsWith('.md'));
-
-  return files.map(file => {
-    const content = fs.readFileSync(path.join(dirPath, file), 'utf8');
-    const { data } = matter(content);
-    return {
-      id: `${dirName}-${file}`,
-      type: typeLabel,
-      title: data.title || file.replace('.md', ''),
-      // 保留完整 ISO 时间供前端处理
-      date: data.date ? new Date(data.date).toISOString() : '1970-01-01T00:00:00Z',
-      url: `/${linkPrefix}/${file.replace('.md', '')}`
-    };
-  });
-}
-
 export default async function AdminAboutPage() {
-  const fullPath = path.join(process.cwd(), 'app', 'about', 'about.md');
+  let content = (await getSiteSetting('about_markdown')) || '博主很懒，还没有写自我介绍哦...';
   let contentHtml = "博主很懒，还没有写自我介绍哦...";
-  let coverImage = "https://bu.dusays.com/2026/03/24/69c23dc278c78.jpg";
+  let coverImage = (await getSiteSetting('about_cover')) || "https://bu.dusays.com/2026/03/24/69c23dc278c78.jpg";
 
   try {
-    const fileContents = fs.readFileSync(fullPath, 'utf8');
-    // 🌟 改为 let，以便进行文本预清洗
-    let { data, content } = matter(fileContents);
-
-    if (data.cover) coverImage = data.cover;
-
     // ==========================================
     // 🌟 解析前物理清洗区
     // ==========================================
@@ -99,9 +70,27 @@ export default async function AdminAboutPage() {
   }
 
   // 🌟 3. 获取所有的活动动态
-  const posts = getDirActivities('posts', '文章', 'posts');
-  const chatters = getDirActivities('chatters', '杂谈', 'chatter');
-  const moments = getDirActivities('moments', '说说', 'moments');
+  const posts = (await getPosts()).map((p) => ({
+    id: `posts-${p.slug}`,
+    type: '文章',
+    title: p.title || p.slug,
+    date: new Date(p.date || '1970-01-01').toISOString(),
+    url: `/posts/${p.slug}`
+  }));
+  const chatters = (await getChatters()).map((c) => ({
+    id: `chatters-${c.slug}`,
+    type: '杂谈',
+    title: c.title || c.slug,
+    date: new Date(c.date || '1970-01-01').toISOString(),
+    url: `/chatter/${c.slug}`
+  }));
+  const moments = (await getMoments()).map((m) => ({
+    id: `moments-${m.id}`,
+    type: '说说',
+    title: m.content?.slice(0, 20) || m.id,
+    date: new Date(m.date || '1970-01-01').toISOString(),
+    url: `/moments`
+  }));
 
   // 将所有动态合并，并按时间倒序排列 (最新的在最上面)
   const allActivities = [...posts, ...chatters, ...moments].sort((a, b) => {

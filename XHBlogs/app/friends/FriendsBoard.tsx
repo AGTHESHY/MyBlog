@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import BackButton from '../../components/BackButton';
-import { friendsData } from '../../data/friends';
 import Comments from '../../components/Comments'; // 🌟 引入你的 Gitalk 组件
 import { siteConfig } from '../../siteConfig'; // 🌟 引入刚刚更新的全局配置文件
 
@@ -21,7 +20,9 @@ const itemVariants = {
   show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 300, damping: 24 } }
 };
 
-export default function FriendsBoard() {
+type Friend = { id: string; name: string; url: string; description: string; avatar: string; themeColor: string };
+
+export default function FriendsBoard({ friendsData }: { friendsData: Friend[] }) {
   // 🌟 控制复制按钮的状态
   const [isCopied, setIsCopied] = useState(false);
 

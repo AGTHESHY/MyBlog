@@ -1,6 +1,3 @@
-import fs from 'fs';
-import path from 'path';
-import matter from 'gray-matter';
 import Link from 'next/link';
 
 // 🌟 核心升级：引入 Next.js 现代统一解析流
@@ -23,23 +20,17 @@ import ClientSocials from '../../../components/ClientSocials';
 import SidebarLyric from '../../../components/SidebarLyric';
 import BackButton from '../../../components/BackButton';
 import Comments from '../../../components/Comments';
+import { getChatterBySlug, getRecentChatters, listChatterSlugs } from '../../../lib/content-store';
 
 export async function generateStaticParams() {
-  const chattersDirectory = path.join(process.cwd(), 'chatters');
-  if (!fs.existsSync(chattersDirectory)) return [];
-  const filenames = fs.readdirSync(chattersDirectory);
-  return filenames
-    .filter((name) => name.endsWith('.md'))
-    .map((name) => ({
-      slug: name.replace(/\.md$/, ''),
-    }));
+  const slugs = await listChatterSlugs();
+  return slugs.map((slug) => ({ slug }));
 }
 
 async function getChatterData(slug: string) {
-  const fullPath = path.join(process.cwd(), 'chatters', `${slug}.md`);
-  const fileContents = fs.readFileSync(fullPath, 'utf8');
-
-  let { data, content } = matter(fileContents);
+  const dbChatter = await getChatterBySlug(slug);
+  if (!dbChatter) return null;
+  let content = dbChatter.content || '';
 
   // ==========================================
   // 🌟 前台渲染清洗区：终极防吞换行 + 安全保护补丁！（从 Post 完美移植）
@@ -93,28 +84,12 @@ async function getChatterData(slug: string) {
   return {
     slug,
     contentHtml: processedContent.toString(),
-    title: data.title || '碎片记录',
-    date: data.date,
-    mood: data.mood,
-    tags: data.tags && Array.isArray(data.tags) ? data.tags : [],
-    cover: data.cover || siteConfig.defaultPostCover
+    title: dbChatter.title || '碎片记录',
+    date: dbChatter.date,
+    mood: dbChatter.mood,
+    tags: dbChatter.tags && Array.isArray(dbChatter.tags) ? dbChatter.tags : [],
+    cover: dbChatter.cover || siteConfig.defaultPostCover
   };
-}
-
-function getRecentChatters(currentSlug: string) {
-  const chattersDirectory = path.join(process.cwd(), 'chatters');
-  let fileNames: string[] = [];
-  try { fileNames = fs.readdirSync(chattersDirectory).filter(f => f.endsWith('.md')); } catch(e) {}
-  if (!fileNames) return [];
-
-  return fileNames.map(f => {
-    const s = f.replace(/\.md$/, '');
-    const c = fs.readFileSync(path.join(chattersDirectory, f), 'utf8');
-    const { data } = matter(c);
-    return { slug: s, title: data.title || '碎片记录', date: data.date || '1970-01-01' };
-  }).filter(p => p.slug !== currentSlug)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 3);
 }
 
 function generateCalendarMatrix(year: number, month: number, targetDay: number) {
@@ -130,7 +105,10 @@ function generateCalendarMatrix(year: number, month: number, targetDay: number) 
 export default async function ChatterDetail({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = await params;
   const chatterData = await getChatterData(resolvedParams.slug);
-  const recentChatters = getRecentChatters(resolvedParams.slug);
+  if (!chatterData) {
+    return <div className="min-h-screen flex items-center justify-center text-slate-500">杂谈不存在</div>;
+  }
+  const recentChatters = await getRecentChatters(resolvedParams.slug);
 
   const dateObj = new Date(chatterData.date || '2026-03-24');
   const yearStr = dateObj.getFullYear();

@@ -1,24 +1,34 @@
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import BackButton from '../../components/BackButton';
-import { projectsData as initialProjects, Project } from '../../data/projects';
 import { Plus, Pencil, Trash2, AlertTriangle, Save, Edit3, X, Sparkles, Code2 } from 'lucide-react';
 import { useOperations } from '../../context/OperationContext';
 import { useToast } from '../../components/ToastProvider';
+
+type Project = { id: string; name: string; description: string; icon: string; githubUrl: string; tags: string[] };
 
 export default function ProjectsBoard() {
   const { addOperation } = useOperations();
   const { showToast } = useToast();
 
   // 1. 核心状态
-  const [editableProjects, setEditableProjects] = useState<Project[]>(initialProjects);
+  const [editableProjects, setEditableProjects] = useState<Project[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
 
   // 2. 弹窗状态
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null; name: string | null }>({ isOpen: false, id: null, name: null });
   const [projectModal, setProjectModal] = useState<{ isOpen: boolean; mode: 'add' | 'edit'; data: Partial<Project> }>({ isOpen: false, mode: 'add', data: {} });
+
+  useEffect(() => {
+    fetch('/api/content/projects')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json?.success && Array.isArray(json.data)) setEditableProjects(json.data);
+      })
+      .catch(() => {});
+  }, []);
 
   // 3. 搜索过滤逻辑
   const filteredProjects = useMemo(() => {

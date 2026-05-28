@@ -3,12 +3,14 @@
 import { useState, useMemo, useEffect } from 'react';
 import Navbar from '../../components/Navbar';
 import PageTransition from '../../components/PageTransition';
-import { albums as initialAlbums, Album, Photo } from '../../data/albums';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Pencil, Trash2, Search, Image as ImageIcon, X, Save, AlertTriangle, Sparkles, Edit3, CloudUpload } from 'lucide-react';
 import { useOperations } from '../../context/OperationContext';
 import { useToast } from '../../components/ToastProvider';
 import FloatingImageTool from '../../components/editor/FloatingImageTool';
+
+type Photo = { url: string; caption?: string };
+type Album = { id: string; title: string; description: string; cover: string; date: string; photos: Photo[] };
 
 export default function PhotoWallPage() {
   const [currentAlbum, setCurrentAlbum] = useState<Album | null>(null);
@@ -28,7 +30,18 @@ export default function PhotoWallPage() {
 
   const { addOperation } = useOperations();
   const { showToast } = useToast();
-  const [editableAlbums, setEditableAlbums] = useState<Album[]>(initialAlbums);
+  const [editableAlbums, setEditableAlbums] = useState<Album[]>([]);
+
+  useEffect(() => {
+    fetch('/api/content/albums')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json?.success && Array.isArray(json.data)) {
+          setEditableAlbums(json.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; type: 'album' | 'photo'; id?: string; photoIndex?: number; title: string }>({ isOpen: false, type: 'album', title: '' });
   const [albumModal, setAlbumModal] = useState<{ isOpen: boolean; mode: 'add' | 'edit'; data: any }>({ isOpen: false, mode: 'add', data: {} });

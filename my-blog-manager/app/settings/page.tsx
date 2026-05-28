@@ -59,10 +59,7 @@ function SettingsContent() {
   useEffect(() => {
     const fetchRealConfig = async () => {
       try {
-        const configRes = await fetch(`/backend_config.json?t=${Date.now()}`);
-        const configData = await configRes.json();
-
-        const res = await fetch(`http://127.0.0.1:${configData.api_port}/api/config/get`, { cache: 'no-store' });
+        const res = await fetch(`/api/config/get`, { cache: 'no-store' });
         const data = await res.json();
 
         if (data.success && data.data) {
