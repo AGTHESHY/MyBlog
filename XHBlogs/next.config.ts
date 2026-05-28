@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
+
   // 🚨 核心修改 1：关掉纯静态导出，让 Vercel 帮你把 API 跑起来！
   // output: 'export',
 

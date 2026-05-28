@@ -1,0 +1,93 @@
+name: xhblogs
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: xhblogs-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-xhblogs}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/migrations/init_mysql.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  cms-api:
+    build:
+      context: ./my-blog-manager
+      dockerfile: Dockerfile.api
+    container_name: xhblogs-cms-api
+    restart: unless-stopped
+    ports:
+      - "${CMS_API_PORT:-8000}:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  xhblogs:
+    build:
+      context: ./XHBlogs
+      dockerfile: Dockerfile
+    container_name: xhblogs-web
+    restart: unless-stopped
+    ports:
+      - "${XHBLOGS_PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD:-root}@mysql:3306/${MYSQL_DATABASE:-xhblogs}
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-xhblogs}
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  blog-manager:
+    build:
+      context: ./my-blog-manager
+      dockerfile: Dockerfile
+    container_name: xhblogs-manager
+    restart: unless-stopped
+    ports:
+      - "${MANAGER_PORT:-3001}:3000"
+    environment:
+      DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD:-root}@mysql:3306/${MYSQL_DATABASE:-xhblogs}
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-xhblogs}
+      CMS_API_PORT: ${CMS_API_PORT:-8000}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      cms-api:
+        condition: service_started
+
+  migrator:
+    profiles: ["tools"]
+    image: node:20-alpine
+    working_dir: /work/XHBlogs
+    volumes:
+      - ./:/work
+    environment:
+      DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD:-root}@mysql:3306/${MYSQL_DATABASE:-xhblogs}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command: sh -c "npm ci && node ../scripts/migrations/migrate_to_mysql.mjs"
+
+volumes:
+  mysql_data:
