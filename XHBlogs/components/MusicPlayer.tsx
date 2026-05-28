@@ -51,26 +51,27 @@ export default function CloudPlayer({ songIds }: { songIds: string[] }) {
     let isMounted = true;
     const fetchMusicData = async () => {
       try {
-        const fetchPromises = songIds.map(id =>
-          fetch(`https://api.injahow.cn/meting/?server=netease&type=song&id=${id}`)
-            .then(res => { if (!res.ok) throw new Error("API 异常"); return res.json(); })
-            .catch(err => null)
-        );
-        const results = await Promise.all(fetchPromises);
-        const mergedPlaylist = results
-          .filter(res => res && res.length > 0)
-          .map(res => {
-            const song = res[0];
+        const fetchPromises = songIds.map(async (id) => {
+          try {
+            const res = await fetch(`/api/music/song/${encodeURIComponent(id)}`, { cache: 'no-store' });
+            const json = await res.json();
+            if (!json?.success || !json?.data) return null;
+            const song = json.data;
             return {
-              id: song.id,
+              id: song.id || id,
               title: song.name || '未知歌曲',
               artist: song.artist || '未知歌手',
               cover: song.cover || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?q=80&w=300',
               src: song.url,
-              lrcUrl: song.lrc
+              lrc: song.lrc || '',
+              lrcUrl: '',
             };
-          })
-          .filter(song => song.src);
+          } catch {
+            return null;
+          }
+        });
+        const results = await Promise.all(fetchPromises);
+        const mergedPlaylist = results.filter((song): song is NonNullable<typeof song> => !!song && !!song.src);
 
         if (isMounted) {
           if (mergedPlaylist.length > 0) {
@@ -214,7 +215,7 @@ export default function CloudPlayer({ songIds }: { songIds: string[] }) {
           </div>
           <div className="flex-col overflow-hidden w-full">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-black text-indigo-500 dark:text-indigo-400 tracking-widest uppercase bg-white/50 dark:bg-slate-900/50 px-2 py-0.5 rounded-sm shadow-sm transition-colors duration-700">Cloud Music</span>
+              <span className="text-[10px] font-black text-indigo-500 dark:text-indigo-400 tracking-widest uppercase bg-white/50 dark:bg-slate-900/50 px-2 py-0.5 rounded-sm shadow-sm transition-colors duration-700">Kugou Music</span>
               <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-white/40 dark:bg-slate-700/50 px-2 rounded-full transition-colors duration-700">{currentIndex + 1} / {playlist.length}</span>
             </div>
             {/* 【修改点】：歌曲标题和歌手加上暗色模式字体 */}

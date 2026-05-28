@@ -1,8 +1,8 @@
 # 🌟 欢迎使用 XHBlogs！
 
-这是一个采用 Next.js 构建的高颜值、毛玻璃（Glassmorphism）风格个人博客系统。本项目自带完善的前端展示与独立的本地后台控制台，支持 Markdown 沉浸式写作、草稿管理以及便捷的图床配置。
+这是一个采用 Next.js 构建的高颜值、毛玻璃（Glassmorphism）风格个人博客系统。前台（`XHBlogs`）与管理后台（`my-blog-manager`）**共用 MySQL 数据库**读写内容，不再依赖 `posts/`、`chatters/` 等本地 Markdown 文件目录。
 
-本指南将带你从零开始，轻松部署并使用 XHBlogs。
+本指南涵盖 Docker 部署、数据库结构说明，以及图床 / 评论等扩展配置。
 
 ---
 ## 语言
@@ -29,28 +29,45 @@
 
 ## 一、快速开始部署
 
-### 1. 环境配置
+### 1. 推荐：Docker 一键启动
 
-在开始之前，请确保你的电脑已安装以下运行环境，否则后续程序将无法正常启动：
+**无需在本机安装 Node.js / Python / MySQL 客户端。**
 
-- **Node.js** (推荐版本 v18.x 或以上)
-- **包管理器** (npm)
-- **Git** (用于拉取代码与版本控制)
-- **Python** (建议版本 3.10 及以上，本系统在 3.10 环境下测试通过)
-- *可选：云存储/图床服务（后续会有详细配置说明）*
+```powershell
+cd 你的项目根目录
+copy .env.example .env
+docker compose up -d --build
+```
 
-### 2. 快速开始
+| 服务 | 地址 |
+|------|------|
+| 博客前台 | http://localhost:3000 |
+| 管理后台 | http://localhost:3001 |
+| 图床等 API | http://localhost:8000 |
 
-#### ① 启动脚本
+完整说明见 [DOCKER.md](./DOCKER.md)。建表脚本：`scripts/migrations/init_mysql.sql`。
 
-当你完成上述环境的配置后，恭喜你，最基础的准备工作已经搞定了！
-首先，进入 `my-blog-manager` 文件夹（**⚠️ 注意：请绝对不要重命名此文件夹，否则会导致环境路径解析失败！**）
+### 2. 环境变量
 
-双击运行文件夹中的启动脚本：
-`Start.bat`
-脚本会自动检测并安装所需的依赖包。等待环境配置完成后，程序会自动唤起精美的后台控制台。
+两个 Next.js 项目使用同一数据库，在各自目录或 Compose 中配置：
 
-#### ② 部署你的博客到 Vercel
+```env
+DATABASE_URL=mysql://root:你的密码@127.0.0.1:3306/xhblogs
+```
+
+也可拆分：`MYSQL_HOST`、`MYSQL_PORT`、`MYSQL_USER`、`MYSQL_PASSWORD`、`MYSQL_DATABASE`。
+
+### 3. 可选：导入历史 Markdown
+
+若曾使用本地 `XHBlogs/posts/`、`chatters/`、`moments/` 等目录，可一次性导入：
+
+```powershell
+docker compose --profile tools run --rm migrator
+```
+
+### 4. 部署前台到 Vercel（可选）
+
+> 线上环境需配置可访问的 **MySQL**（如云数据库），在 Vercel 环境变量中设置 `DATABASE_URL`。仅推送静态文件、不连数据库的方式已不再适用。
 
 > **提示**：本教程主要演示如何将项目部署至 Vercel，因为 Vercel 对 Next.js 框架有着最顶级的原生支持。
 >
@@ -79,19 +96,7 @@
 3. 提交到本地版本库，并添加备注
    `git commit -m "first commit"`
 
-**1. 配置本地物理路径**
-打开控制台的“设置”页面。
-在拉取的源码中，包含 `XHBlogs-mananger` 和 `XHBlogs` 两个核心文件夹。请在控制台中指定 `XHBlogs` 的本地物理路径。
-
-![选择物理路径](picture/Pasted%20image%2020260427111646.png)
-
-例如：`F:\Test2\XHBlogs`
-
-![填入本地BLOG物理路径](picture/Pasted%20image%2020260427112311.png)
-
-> **关键步骤**：填入路径后，请务必点击 **[测试路径]** 进行连通性验证！！！验证通过后，再点击下方的 **[保存双轨配置]**。
-
-**2. 在 GitHub 创建私有仓库**
+**1. 在 GitHub 创建私有仓库**
 登录 GitHub，新建一个用于托管博客源码的仓库（建议设置为 **Private 私有仓库** 以保护数据隐私）。
 
 ![创建仓库](picture/Pasted%20image%2020260427112905.png)
@@ -106,7 +111,7 @@
 
 源码分支填写为 `main`。确认无误后，再次点击 **[保存双轨配置]**。
 
-**3. 获取并配置部署密钥**
+**2. 获取并配置部署密钥**
 点击控制台中的 **[获取B线专属密钥]** 按钮：
 
 ![专属密钥](picture/98b965b5-6193-4690-a478-fe1a9abd594e.png)
@@ -120,7 +125,7 @@
 > **🚨 严重警告**：下方的 **Allow write access** 选项必须勾选！！！
 > 设置完毕后，点击 **Add key** 保存。
 
-**4. 初始化并推送源码**
+**3. 初始化并推送源码**
 返回本地控制台，点击 **[智能初始化双轨环境]**，静待程序执行完毕。
 完成后，点击 **[仅同步源码]** 按钮：
 
@@ -130,7 +135,7 @@
 
 ![同步进度](picture/Pasted%20image%2020260427121702.png)
 
-进度条完成后，说明前端静态页面源码已成功托管至 GitHub。
+进度条完成后，说明前端源码已成功托管至 GitHub。
 
 > **此处可能出现无法推送bug**：
 >
@@ -140,7 +145,7 @@
 >
 > ![img.png](picture/img.png)
 
-**5. 部署至 Vercel 平台**
+**4. 部署至 Vercel 平台**
 访问 Vercel 官网，注册账号并绑定你的 GitHub 授权！
 
 ![绑定账号](picture/Pasted%20image%2020260427121844.png)
@@ -211,46 +216,155 @@ Vercel 默认会为你分配一个免费的二级域名：
 
 ---
 
-## 二、更新设置及上传文件
+## 二、数据库结构说明
 
-为了保护数据安全，本控制台采用了**“操作暂存区”**机制。**请特别注意！！** 许多设置在修改后，必须主动执行“更新到本地”才能真正保存。需要执行此操作时，界面上方通常会有高亮提示。
+- **库名**：`xhblogs`
+- **字符集**：`utf8mb4` / `utf8mb4_unicode_ci`
+- **建表**：`scripts/migrations/init_mysql.sql`
+- **清空业务表**：`scripts/migrations/reset_mysql.sql`（不可恢复，慎用）
 
-**操作示例：修改个人简介**
+### posts（博客文章主表）
 
-![修改简介](picture/Pasted%20image%2020260427125314.png)
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | BIGINT UNSIGNED | 文章自增主键 |
+| slug | VARCHAR(191) | 文章唯一标识，用于路由 `/posts/[slug]` |
+| title | VARCHAR(255) | 文章标题 |
+| description | TEXT | 文章摘要 |
+| cover | TEXT | 封面图 URL |
+| tags_json | JSON | 文章标签数组，如 `["技术","生活"]` |
+| body_markdown | LONGTEXT | Markdown 正文 |
+| published_at | DATETIME | 发布时间 |
+| status | VARCHAR(20) | `draft` / `published`，默认 `published` |
+| created_at | DATETIME | 创建时间 |
+| updated_at | DATETIME | 更新时间 |
 
-修改内容后，点击 **[暂存到操作队列]**：
+### chatters（杂谈内容主表）
 
-![暂存队列](picture/Pasted%20image%2020260427125430.png)
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | BIGINT UNSIGNED | 杂谈自增主键 |
+| slug | VARCHAR(191) | 杂谈唯一标识，用于路由 `/chatter/[slug]` |
+| title | VARCHAR(255) | 杂谈标题 |
+| mood | VARCHAR(100) | 心情 |
+| cover | TEXT | 封面图 URL |
+| tags_json | JSON | 杂谈标签数组 |
+| body_markdown | LONGTEXT | Markdown 正文 |
+| published_at | DATETIME | 发布时间 |
+| status | VARCHAR(20) | `draft` / `published` |
+| created_at | DATETIME | 创建时间 |
+| updated_at | DATETIME | 更新时间 |
 
-此时上方工具箱会提示待办操作。你可以随时撤销（清空全部），或者点击 **[更新本地]**。
+### moments（说说动态表）
 
-> ⚠️ 注意：点击“更新本地”后，数据仅仅保存在了你的本地控制台环境中。
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | VARCHAR(191) | 说说 ID（业务主键） |
+| content | LONGTEXT | 说说正文 |
+| location | VARCHAR(255) | 地理位置 |
+| images_json | JSON | 图片 URL 数组 |
+| published_at | DATETIME | 发布时间 |
+| status | VARCHAR(20) | `draft` / `published` |
+| created_at | DATETIME | 创建时间 |
+| updated_at | DATETIME | 更新时间 |
 
-如果你希望让这些修改在前端博客页面生效，你必须继续点击 **[同步 Blog]**（前提是前端博客的物理路径已正确配置）：
+### friends（友链数据表）
 
-![同步Blog](picture/Pasted%20image%2020260427125800.png)
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | VARCHAR(191) | 友链 ID |
+| name | VARCHAR(255) | 友链名称 |
+| url | TEXT | 友链地址 |
+| description | TEXT | 友链描述 |
+| avatar | TEXT | 头像 URL |
+| theme_color | VARCHAR(64) | 主题色 |
+| sort_order | INT | 排序序号，越小越靠前 |
+| created_at | DATETIME | 创建时间 |
+| updated_at | DATETIME | 更新时间 |
 
-博客文章、说说（碎碎念）、杂谈等所有内容的发布与修改，均遵循此流程。
+### projects（项目展示表）
 
-> **💡 黄金法则**：暂存队列 -> 更新本地 -> 同步Blog
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | VARCHAR(191) | 项目 ID |
+| name | VARCHAR(255) | 项目名 |
+| description | TEXT | 项目描述 |
+| icon | VARCHAR(50) | 项目图标（如 emoji） |
+| github_url | TEXT | GitHub 地址 |
+| tags_json | JSON | 项目标签数组 |
+| sort_order | INT | 排序序号 |
+| created_at | DATETIME | 创建时间 |
+| updated_at | DATETIME | 更新时间 |
+
+### albums（相册主表）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | VARCHAR(191) | 相册 ID |
+| title | VARCHAR(255) | 相册标题 |
+| description | TEXT | 相册描述 |
+| cover | TEXT | 相册封面 URL |
+| date_label | VARCHAR(50) | 展示日期标签，如 `2026.01` |
+| sort_order | INT | 排序序号 |
+| created_at | DATETIME | 创建时间 |
+| updated_at | DATETIME | 更新时间 |
+
+### album_photos（相册照片明细表）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | BIGINT UNSIGNED | 照片自增主键 |
+| album_id | VARCHAR(191) | 所属相册 ID，外键关联 `albums.id`，级联删除 |
+| photo_url | TEXT | 照片 URL |
+| caption | TEXT | 照片描述 |
+| sort_order | INT | 排序序号 |
+| created_at | DATETIME | 创建时间 |
+| updated_at | DATETIME | 更新时间 |
+
+### site_settings（站点配置键值表）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | BIGINT UNSIGNED | 设置自增主键 |
+| setting_key | VARCHAR(191) | 设置键名（唯一） |
+| value_text | LONGTEXT | 设置值，多为 JSON 字符串或 Markdown 文本 |
+| updated_at | DATETIME | 更新时间 |
+
+常用键名示例：
+
+| setting_key | 说明 |
+|-------------|------|
+| about_markdown | 关于页 Markdown 正文 |
+| about_cover | 关于页封面图 URL |
+| （其它） | 与控制台「设置」页面对应的配置项，由程序写入 |
 
 ---
 
-## 三、如何推送你的修改到线上网页？
+## 三、内容与配置管理
 
-当你在本地完成了满意的创作或设置调整，想要将其发布到公网让所有人看到时：
+文章、杂谈、说说、友链、项目、相册等数据均在**管理后台**写入 MySQL，**前台即时读取同一数据库**，无需再配置 `XHBlogs` 物理路径，也无需「同步 Blog」到本地文件夹。
 
-请牢记，在执行了任何实质性修改并点击 **[同步Blog]** 后，请打开控制台的同步部署页面：
+1. 打开 http://localhost:3001 进入管理后台  
+2. 在编辑器 / 各管理页面保存内容  
+3. 刷新 http://localhost:3000 即可看到更新  
 
-![打开同步](picture/Pasted%20image%2020260427130216.png)
-
-确认“B线”地址正确无误，点击 **[仅同步源码]**。
-等待 GitHub Actions 或 Vercel 自动捕获更新。稍作喝杯茶的功夫，你就能在线上页面看到最新鲜的内容了！
+站点外观、关于页等配置通过设置页写入 `site_settings` 表。草稿与发布状态由对应表的 `status` 字段控制。
 
 ---
 
-## 四、图床配置
+## 四、如何推送代码到线上？
+
+若仍将前台部署在 Vercel，内容数据在 MySQL 中，**改文章不必再推送 Markdown 文件**；推送的是 Next.js 源码变更。确认 Vercel 已配置 `DATABASE_URL` 指向线上数据库后：
+
+1. 在控制台打开同步 / 部署相关页面（或使用 Git 手动推送）  
+2. 将 `XHBlogs` 目录变更推送到 GitHub  
+3. 等待 Vercel 自动构建部署  
+
+数据库变更（新文章等）随 MySQL 即时生效，与 Git 推送无关。
+
+---
+
+## 五、图床配置
 
 为了优化写作体验，控制台深度整合了图床上传功能。本指南推荐使用“去不图床”（[https://7bu.top](https://7bu.top)）。
 如果你习惯使用纯外链，工具台也完美支持直接插入图片 URL。如果想接入其他支持标准 API 的图床，也欢迎极客们自行尝试。
@@ -263,7 +377,7 @@ Vercel 默认会为你分配一个免费的二级域名：
 
 ---
 
-## 五、AI 猫猫助理设置
+## 六、AI 猫猫助理设置
 
 博客系统内置了一只聪明的 AI 猫猫助理（默认接入 Gemini 模型）。极客玩家也可以通过修改源码接入其他大语言模型。
 
@@ -298,7 +412,7 @@ Vercel 默认会为你分配一个免费的二级域名：
 
 ---
 
-## 六、评论系统配置
+## 七、评论系统配置
 
 本博客的评论系统基于 GitHub Issues（Gitalk 等类似方案）。你需要在 GitHub 创建一个 **Public（公开）** 仓库来专门存储网友的留言。
 
@@ -333,24 +447,53 @@ Vercel 默认会为你分配一个免费的二级域名：
 
 ---
 
-## 七、网易云音乐挂件设置
+## 八、酷狗音乐挂件设置
 
-![歌单设置](picture/Pasted%20image%2020260427141049.png)
+音乐数据来自 [酷狗音乐开放平台](https://open.kugou.com/docs/iot-solution/#/OPENAPI/README) 相关接口（服务端代理请求，前端样式保持不变）。
 
-想给博客配上 BGM 吗？
-通过电脑浏览器打开 **网易云音乐网页版**。搜索并进入你喜欢的歌曲详情页，观察浏览器地址栏，URL 中的数字即为歌曲的专属 ID：
+### 配置歌单（推荐方式）
 
-![网易云ID](picture/Pasted%20image%2020260427141235.png)
+1. 打开管理后台 **设置 → 音乐播放设置**
+2. **按歌名搜索**：输入「云月谣 兰音」等关键词 → 搜索 → 点 **添加**（无需手抄 ID）
+3. **导入公开歌单**：把酷狗歌单分享链接粘贴到输入框 → **一键导入歌单到列表**
+4. 点击 **暂存音乐修改** 并同步配置
 
-将这串 ID 复制并粘贴到控制台的搜索框中，即可一键将该歌曲收录进你的博客歌单库！
+### 如何导入「我的收藏」？
 
-![添加歌曲](picture/Pasted%20image%2020260427141356.png)
+酷狗**没有**对个人开发者开放「直接读取账号收藏」的公开 API（需登录 token，本博客未接入）。
+
+可行做法：
+
+1. 打开酷狗 App / 网页，进入 **我的收藏**
+2. 全选或整理后 **创建歌单** 或 **分享为歌单**（需设为可分享/公开）
+3. 复制歌单分享链接，粘贴到后台 **导入酷狗公开歌单** 一栏
+
+支持识别的链接形式包括：带 `specialid` 的链接、`collection_...` 收藏 ID、纯数字歌单 ID。
+
+### 高级：手动 ID（可选）
+
+| 格式 | 示例 | 说明 |
+|------|------|------|
+| `hash\|album_id` | `CB7EE97F4CC11C4EA7A1FA4B516A5D97\|1820033` | 播放最稳定 |
+| 32 位 hash | `CB7EE97F4CC11C4EA7A1FA4B516A5D97` | 仅 hash |
+| album_audio_id | 数字 ID | 自动解析 |
+
+在 **高级：按 hash\|album_id 手动添加** 折叠区中使用。
+
+### 接口说明
+
+- 按歌名搜索：`GET /api/music/search?q=关键词`
+- 导入歌单：`GET /api/music/playlist?url=分享链接`
+- 前台播放：`GET /api/music/song/{id}`
+- 后台校验：`GET /api/music/query/{id}`
+
+参考 [酷狗音乐 IoT 开放平台](https://open.kugou.com/docs/iot-solution/#/OPENAPI/README)；当前实现通过服务端代理访问公开曲库接口，个人收藏需按上文转为公开歌单链接导入。
 
 ---
 
 ## 写在最后
 
-XHBLogs 还有诸多隐藏的细节功能，期待极客朋友们在实际使用中慢慢探索。本项目旨在提供一套开箱即用的前端静态展示与后台管理方案。如果你是资深开发者，觉得控制台操作仍有优化空间，完全可以基于 Next.js 源码进行二次开发，甚至手搓 Markdown 进行部署！
+XHBLogs 还有诸多隐藏的细节功能，期待你在实际使用中慢慢探索。本项目提供基于 MySQL 的前台展示与后台管理方案，可自行维护数据库与源码并按需扩展。
 
 **如果你觉得这个项目对你有帮助，请务必在 GitHub 上为我点亮一颗 ⭐ Star！每一颗星都是博主持续维护更新的最大动力。谢谢大家！**
 

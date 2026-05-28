@@ -7,7 +7,13 @@ function getPool(): Pool {
 
   const url = process.env.DATABASE_URL;
   if (url) {
-    pool = mysql.createPool(url);
+    pool = mysql.createPool({
+      uri: url,
+      waitForConnections: true,
+      connectionLimit: 10,
+      namedPlaceholders: true,
+      charset: 'utf8mb4',
+    });
     return pool;
   }
 

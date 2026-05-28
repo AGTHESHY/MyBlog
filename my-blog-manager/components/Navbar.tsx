@@ -61,22 +61,6 @@ export default function Navbar() {
     { name: '⚙️ 设置', href: '/settings' },
   ];
 
-  const handleMinimize = () => {
-    if (typeof window !== 'undefined' && (window as any).pywebview?.api) {
-      (window as any).pywebview.api.minimize_window();
-    }
-  };
-  const handleMaximize = () => {
-    if (typeof window !== 'undefined' && (window as any).pywebview?.api) {
-      (window as any).pywebview.api.maximize_window();
-    }
-  };
-  const handleClose = () => {
-    if (typeof window !== 'undefined' && (window as any).pywebview?.api) {
-      (window as any).pywebview.api.close_window();
-    }
-  };
-
   // 🌟 监控增强版更新逻辑
   const handleUpdateLocal = async () => {
       if (operations.length === 0) {
@@ -182,7 +166,7 @@ export default function Navbar() {
 
   return (
     <>
-      <header className={`w-full fixed top-0 left-0 right-0 z-[100] transition-all duration-500 border-b ${showNav ? 'translate-y-0' : '-translate-y-full'} bg-white/40 dark:bg-slate-900/50 backdrop-blur-xl border-white/20 dark:border-white/5 shadow-sm pywebview-drag-region`}>
+      <header className={`w-full fixed top-0 left-0 right-0 z-[100] transition-all duration-500 border-b ${showNav ? 'translate-y-0' : '-translate-y-full'} bg-white/40 dark:bg-slate-900/50 backdrop-blur-xl border-white/20 dark:border-white/5 shadow-sm`}>
         <div className="w-[95%] max-w-7xl mx-auto h-16 flex items-center justify-between px-4 box-border">
 
           <Link href="/" className="text-xl font-black text-slate-800 dark:text-white tracking-tighter">
@@ -193,7 +177,7 @@ export default function Navbar() {
             {siteConfig.navAfter}
           </Link>
 
-          <div className="flex items-center gap-6" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          <div className="flex items-center gap-6">
             <nav className="hidden lg:flex gap-8 text-sm font-bold">
               {navLinks.map((link) => (
                 <Link key={link.href} href={link.href} className={`relative py-1 transition-colors ${pathname === link.href ? 'text-indigo-600' : 'text-slate-700 dark:text-slate-200'}`}>
@@ -250,18 +234,6 @@ export default function Navbar() {
                   </motion.div>
                 )}
               </AnimatePresence>
-            </div>
-
-            <div className="flex items-center gap-2 ml-2 pl-6 border-l border-slate-300/50 dark:border-slate-600/50">
-              <button onClick={handleMinimize} className="w-3.5 h-3.5 rounded-full bg-yellow-400 hover:bg-yellow-500 flex items-center justify-center group transition-colors shadow-sm cursor-pointer z-[101]">
-                <span className="opacity-0 group-hover:opacity-100 text-[8px] text-yellow-900 font-black">-</span>
-              </button>
-              <button onClick={handleMaximize} className="w-3.5 h-3.5 rounded-full bg-green-400 hover:bg-green-500 flex items-center justify-center group transition-colors shadow-sm cursor-pointer z-[101]">
-                <span className="opacity-0 group-hover:opacity-100 text-[8px] text-green-900 font-black">+</span>
-              </button>
-              <button onClick={handleClose} className="w-3.5 h-3.5 rounded-full bg-red-400 hover:bg-red-500 flex items-center justify-center group transition-colors shadow-sm cursor-pointer z-[101]">
-                <span className="opacity-0 group-hover:opacity-100 text-[8px] text-red-900 font-black">×</span>
-              </button>
             </div>
 
           </div>

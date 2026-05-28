@@ -31,38 +31,41 @@ This guide will take you from scratch to deploy and use XHBlogs.
 
 > You can now edit the copyable information in the console.
 
-#### 5. Bug Fixes
-
-> Fixed the crash issue with Start.bat and the inability to modify the title.
-
-#### 6. Update Blog Source Code
+#### 5. Update Blog Source Code
 
 > Implemented source code updating.
 
 ## I. Quick Start Deployment
 
-### 1. Environment Configuration
+### 1. Recommended: Docker
 
-Before starting, please ensure your computer has the following runtime environments installed; otherwise, the program will not start properly:
+**No need to install Node.js / Python / MySQL client locally.**
 
-* **Node.js** (v18.x or above recommended)
-* **Package Manager** (npm)
-* **Git** (for pulling code and version control)
-* **Python** (v3.10 or above recommended; tested under v3.10)
-* *Optional: Cloud storage/Image hosting service (detailed configuration instructions provided later)*
+```powershell
+cd your-project-root
+copy .env.example .env
+docker compose up -d --build
+```
 
-### 2. Quick Start
+| Service | URL |
+|---------|-----|
+| Blog frontend | http://localhost:3000 |
+| Admin console | http://localhost:3001 |
+| CMS API (image hosting, etc.) | http://localhost:8000 |
 
-#### ① Startup Script
+See [DOCKER.md](./DOCKER.md) for details.
 
-Once you have completed the environment configuration above, the basic preparation is done.
-First, enter the `my-blog-manager` folder (**⚠️ Note: Do not rename this folder under any circumstances, or environment path resolution will fail!**)
+### 2. Environment Variables
 
-Double-click to run the startup script in the folder:
-`Start.bat`
-The script will automatically detect and install the required dependencies. Once the environment configuration is complete, the program will launch the backend console.
+Both Next.js apps share one MySQL database. Set `DATABASE_URL` in `.env` or Compose.
 
-#### ② Deploy Your Blog to Vercel
+### 3. Optional: Import legacy Markdown
+
+```powershell
+docker compose --profile tools run --rm migrator
+```
+
+### 4. Deploy frontend to Vercel (optional)
 
 > **Tip**: This tutorial primarily demonstrates how to deploy the project to Vercel, as Vercel provides native support for the Next.js framework.
 > **Prerequisite**: Please ensure Git is installed and you have a GitHub account. **Be sure to follow the upcoming steps in order!**

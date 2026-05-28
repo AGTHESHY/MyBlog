@@ -74,6 +74,8 @@ services:
       MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-xhblogs}
       CMS_API_PORT: ${CMS_API_PORT:-8000}
+      KUGOU_IOT_PID: ${KUGOU_IOT_PID:-}
+      KUGOU_IOT_PKEY: ${KUGOU_IOT_PKEY:-}
     depends_on:
       mysql:
         condition: service_healthy

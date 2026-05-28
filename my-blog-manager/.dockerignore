@@ -6,7 +6,3 @@ node_modules
 Dockerfile
 Dockerfile.api
 .dockerignore
-launcher.py
-run_me.py
-Start.bat
-window_config.json

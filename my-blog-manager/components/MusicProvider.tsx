@@ -84,25 +84,29 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     let isMounted = true;
     const fetchMusicData = async () => {
       try {
-        const fetchPromises = siteConfig.cloudMusicIds.map(id =>
-          fetch(`https://api.injahow.cn/meting/?server=netease&type=song&id=${id}`)
-            .then(res => res.json())
-            .catch(() => null)
-        );
+        const fetchPromises = siteConfig.cloudMusicIds.map(async (id) => {
+          try {
+            const res = await fetch(`/api/music/song/${encodeURIComponent(id)}`, { cache: 'no-store' });
+            const json = await res.json();
+            if (!json?.success || !json?.data) return null;
+            const song = json.data;
+            return {
+              id: song.id || id,
+              title: song.name || '未知歌曲',
+              artist: song.artist || '未知歌手',
+              cover: song.cover || 'https://bu.dusays.com/2026/03/24/69c24230a5ff8.jpg',
+              src: song.url,
+              lrc: song.lrc || '',
+              lrcUrl: '',
+              lyrics: [],
+            };
+          } catch {
+            return null;
+          }
+        });
         const results = await Promise.all(fetchPromises);
 
-        const mergedPlaylist = results
-          .filter(res => res && res.length > 0)
-          .map(res => ({
-            id: res[0].id || Math.random().toString(),
-            title: res[0].name || res[0].title || '未知歌曲',
-            artist: res[0].author || res[0].artist || '未知歌手',
-            cover: res[0].pic || res[0].cover || 'https://bu.dusays.com/2026/03/24/69c24230a5ff8.jpg',
-            src: res[0].url,
-            lrcUrl: res[0].lrc,
-            lyrics: [] // 🌟 初始化时预留一个空数组
-          }))
-          .filter(song => song.src);
+        const mergedPlaylist = results.filter((song): song is NonNullable<typeof song> => !!song && !!song.src);
 
         if (isMounted) {
           if (mergedPlaylist.length > 0) setPlaylist(mergedPlaylist);
@@ -127,22 +131,30 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     setLyrics([]);
     setCurrentLyric("♪ 正在缓冲 ♪");
 
-    if (currentSong.lrcUrl) {
+    const loadLyrics = (text: string) => {
+      const parsed = parseLrc(text);
+      setLyrics(parsed);
+      setPlaylist((prev) => {
+        const newPlaylist = [...prev];
+        if (newPlaylist[currentIndex]) {
+          newPlaylist[currentIndex].lyrics = parsed;
+          newPlaylist[currentIndex].lrc = text;
+        }
+        return newPlaylist;
+      });
+    };
+
+    if (typeof currentSong.lrc === 'string' && currentSong.lrc.length > 0) {
+      if (isMounted) loadLyrics(currentSong.lrc);
+    } else if (currentSong.lrcUrl) {
       fetch(currentSong.lrcUrl)
-        .then(res => res.text())
-        .then(text => {
-          if (isMounted) {
-             const parsed = parseLrc(text);
-             setLyrics(parsed);
-             // 🌟 3. 将解析好的歌词反向写入到 playlist 的 currentSong 中，供 MusicPage 读取！
-             setPlaylist(prev => {
-                const newPlaylist = [...prev];
-                newPlaylist[currentIndex].lyrics = parsed;
-                return newPlaylist;
-             });
-          }
+        .then((res) => res.text())
+        .then((text) => {
+          if (isMounted) loadLyrics(text);
         })
-        .catch(() => { if (isMounted) setCurrentLyric("♪ 纯享音乐 ♪"); });
+        .catch(() => {
+          if (isMounted) setCurrentLyric('♪ 纯享音乐 ♪');
+        });
     }
 
     if (isPlaying && audioRef.current) {
