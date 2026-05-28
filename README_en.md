@@ -51,25 +51,7 @@ Before starting, please ensure your computer has the following runtime environme
 * **Python** (v3.10 or above recommended; tested under v3.10)
 * *Optional: Cloud storage/Image hosting service (detailed configuration instructions provided later)*
 
-### 2. Blog Source Code Update
-
-To easily keep up with the latest features, please use the updater to update the source code!
-By using the updater, you no longer need to manually compare code, worry about pull conflicts, or fear that your articles and configuration files will be overwritten.
-
-🛠️ Update Steps:
-
-Step 1: Obtain the lossless updater (only required for the first time)
-
-#### 1. Download the update.bat and update.py files from the project's root directory.
-
-#### 2. Move the downloaded update.bat and update.py to the outermost root directory of your local blog project (i.e., alongside the my-blog-manager and XHBlogs folders).
-
-As shown below:
-
-
-#### 3. Double-click the update.bat file to update. If it crashes, please run the update.py file using CMD.
-
-### 3. Quick Start
+### 2. Quick Start
 
 #### ① Startup Script
 
