@@ -96,14 +96,24 @@ export default function MusicSection({
                   : neteaseAuth?.message ||
                     '默认使用匿名 token；扫码登录后可播放更多 VIP 曲目'}
             </p>
-            <a
-              href="https://developer.music.163.com/st/developer/document?docId=2bb12a93e71a4be0842243b930c2f33c"
-              target="_blank"
-              rel="noreferrer"
-              className="text-[10px] text-indigo-500 hover:underline mt-1 inline-block"
-            >
-              查看二维码登录文档 →
-            </a>
+            <div className="flex flex-wrap gap-3 mt-1">
+              <a
+                href="https://developer.music.163.com/st/developer/document?docId=2bb12a93e71a4be0842243b930c2f33c"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[10px] text-indigo-500 hover:underline"
+              >
+                二维码登录文档 →
+              </a>
+              <a
+                href="/api/music/netease/auth/debug"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[10px] text-amber-600 hover:underline"
+              >
+                检测凭证是否生效 →
+              </a>
+            </div>
           </div>
         </div>
         <div className="flex gap-2 shrink-0">

@@ -84,9 +84,23 @@ function SettingsContent() {
     try {
       const res = await fetch('/api/music/netease/auth/status', { cache: 'no-store' });
       const data = await res.json();
-      if (data.success) setNeteaseAuth(data.data);
+      if (data.success) {
+        setNeteaseAuth(data.data);
+        return;
+      }
+      setNeteaseAuth({
+        configured: false,
+        loggedIn: false,
+        tokenKind: 'none',
+        message: data.message || '无法读取网易云配置状态',
+      });
     } catch {
-      setNeteaseAuth(null);
+      setNeteaseAuth({
+        configured: false,
+        loggedIn: false,
+        tokenKind: 'none',
+        message: '无法连接管理端 API，请确认 blog-manager 容器已启动',
+      });
     }
   }, []);
 

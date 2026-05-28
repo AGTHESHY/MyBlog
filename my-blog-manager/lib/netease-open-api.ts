@@ -5,6 +5,8 @@
  */
 
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import {
   clearNeteaseUserSession,
   loadNeteaseUserSession,
@@ -31,10 +33,37 @@ export type NeteaseAuthStatus = {
   message?: string;
 };
 
+function resolvePrivateKeyRaw(): { raw: string; source: string } {
+  const fromEnv = process.env.NETEASE_PRIVATE_KEY?.trim();
+  if (fromEnv) return { raw: fromEnv, source: 'env:NETEASE_PRIVATE_KEY' };
+
+  const candidates = [
+    process.env.NETEASE_PRIVATE_KEY_PATH?.trim(),
+    path.join(process.cwd(), 'config', 'netease_private_key.pem'),
+    path.join(process.cwd(), '..', 'config', 'netease_private_key.pem'),
+  ].filter((p): p is string => !!p);
+
+  for (const filePath of candidates) {
+    try {
+      if (!fs.existsSync(filePath)) continue;
+      const text = fs.readFileSync(filePath, 'utf8').trim();
+      if (text) return { raw: text, source: `file:${filePath}` };
+    } catch {
+      continue;
+    }
+  }
+  return { raw: '', source: 'none' };
+}
+
+export function getNeteasePrivateKeyDiagnostics() {
+  const { raw, source } = resolvePrivateKeyRaw();
+  return { privateKeyLength: raw.length, privateKeySource: source };
+}
+
 export function getNeteaseOpenConfig(): NeteaseOpenConfig | null {
   const appId = process.env.NETEASE_APP_ID?.trim();
   const appSecret = process.env.NETEASE_APP_SECRET?.trim();
-  const privateKey = normalizePrivateKey(process.env.NETEASE_PRIVATE_KEY);
+  const privateKey = normalizePrivateKey(resolvePrivateKeyRaw().raw);
   if (!appId || !appSecret || !privateKey) return null;
   return { appId, appSecret, privateKey };
 }
@@ -48,11 +77,13 @@ export function getNeteaseOpenConfigHint(): string {
   const missing: string[] = [];
   if (!process.env.NETEASE_APP_ID?.trim()) missing.push('NETEASE_APP_ID');
   if (!process.env.NETEASE_APP_SECRET?.trim()) missing.push('NETEASE_APP_SECRET');
-  if (!normalizePrivateKey(process.env.NETEASE_PRIVATE_KEY)) missing.push('NETEASE_PRIVATE_KEY');
-  if (missing.length === 0) {
-    return '已读取开放平台凭证，若仍无法登录请重建容器：docker compose up -d --build blog-manager';
+  if (!normalizePrivateKey(resolvePrivateKeyRaw().raw)) {
+    missing.push('NETEASE_PRIVATE_KEY（或 config/netease_private_key.pem）');
   }
-  return `未检测到环境变量：${missing.join('、')}。请在仓库根目录 .env 填写后重启管理端（本地 dev 需重启 npm run dev；Docker 需 rebuild）。`;
+  if (missing.length === 0) {
+    return '已读取开放平台凭证。若扫码仍失败请执行：docker compose up -d --force-recreate blog-manager';
+  }
+  return `缺少：${missing.join('、')}。私钥过长时请运行 node scripts/sync-netease-key.mjs 并重建容器。`;
 }
 
 function normalizePrivateKey(raw?: string): string {

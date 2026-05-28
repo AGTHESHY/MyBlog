@@ -45,6 +45,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    volumes:
+      - ./config/netease_private_key.pem:/app/config/netease_private_key.pem:ro
     ports:
       - "${XHBLOGS_PORT:-3000}:3000"
     environment:
@@ -54,7 +56,7 @@ services:
       MYSQL_USER: root
       MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-xhblogs}
-      # 网易云凭证由 env_file: .env 注入（勿在此用 ${NETEASE_PRIVATE_KEY}，超长私钥会被展开成空并覆盖 env_file）
+      NETEASE_PRIVATE_KEY_PATH: /app/config/netease_private_key.pem
     depends_on:
       mysql:
         condition: service_healthy
@@ -69,6 +71,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    volumes:
+      - ./config/netease_private_key.pem:/app/config/netease_private_key.pem:ro
     ports:
       - "${MANAGER_PORT:-3001}:3000"
     environment:
@@ -79,6 +83,7 @@ services:
       MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-xhblogs}
       CMS_API_PORT: ${CMS_API_PORT:-8000}
+      NETEASE_PRIVATE_KEY_PATH: /app/config/netease_private_key.pem
       BLOG_MANAGER_PUBLIC_URL: ${BLOG_MANAGER_PUBLIC_URL:-}
     depends_on:
       mysql:
