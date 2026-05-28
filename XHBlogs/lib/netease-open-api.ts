@@ -4,11 +4,16 @@
  */
 
 import crypto from 'crypto';
+import {
+  loadNeteaseUserSession,
+  saveNeteaseUserSession,
+  type NeteaseUserSession,
+} from './netease-user-session';
 
 const OPENAPI_BASE = 'https://openapi.music.163.com';
 
 type TokenCache = { token: string; expireAt: number };
-let tokenCache: TokenCache | null = null;
+let clientTokenCache: TokenCache | null = null;
 
 export type NeteaseOpenConfig = {
   appId: string;
@@ -110,10 +115,27 @@ async function openApiGet<T>(
   }
 }
 
-async function fetchAccessToken(config: NeteaseOpenConfig): Promise<string | null> {
+function parseTokenPayload(data: {
+  accessToken?: string;
+  token?: string;
+  refreshToken?: string;
+  expireTime?: number;
+  expiresIn?: number;
+}) {
+  const token = data.accessToken || data.token;
+  if (!token) return null;
   const now = Date.now();
-  if (tokenCache && tokenCache.expireAt > now + 60_000) {
-    return tokenCache.token;
+  const expireAt =
+    typeof data.expireTime === 'number' && data.expireTime > 1e12
+      ? data.expireTime
+      : now + (typeof data.expiresIn === 'number' ? data.expiresIn * 1000 : 3_500_000);
+  return { accessToken: token, refreshToken: data.refreshToken, expireAt };
+}
+
+async function fetchClientAccessToken(config: NeteaseOpenConfig): Promise<string | null> {
+  const now = Date.now();
+  if (clientTokenCache && clientTokenCache.expireAt > now + 60_000) {
+    return clientTokenCache.token;
   }
 
   const tokenPaths = [
@@ -137,26 +159,72 @@ async function fetchAccessToken(config: NeteaseOpenConfig): Promise<string | nul
       );
       if (data) break;
     }
-    const token = data?.accessToken || data?.token;
-    if (!token) continue;
-
-    const expireMs =
-      typeof data?.expireTime === 'number'
-        ? data.expireTime
-        : now + (typeof data?.expiresIn === 'number' ? data.expiresIn * 1000 : 3_500_000);
-
-    tokenCache = { token, expireAt: expireMs };
-    return token;
+    const parsed = data ? parseTokenPayload(data) : null;
+    if (!parsed) continue;
+    clientTokenCache = { token: parsed.accessToken, expireAt: parsed.expireAt };
+    return parsed.accessToken;
   }
 
   return null;
 }
 
-export async function fetchOpenApiSongDetail(songId: string) {
+async function refreshUserAccessToken(refreshToken: string): Promise<NeteaseUserSession | null> {
+  const paths = [
+    '/openapi/oauth2/access/token/refresh/get/v2',
+    '/openapi/oauth2/token/refresh/get/v2',
+  ];
+  for (const path of paths) {
+    for (const biz of [{ refreshToken }, { grantType: 'refresh_token', refreshToken }]) {
+      const data = await openApiGet<{
+        accessToken?: string;
+        token?: string;
+        refreshToken?: string;
+        expireTime?: number;
+        expiresIn?: number;
+      }>(path, biz);
+      const parsed = data ? parseTokenPayload(data) : null;
+      if (!parsed) continue;
+      const prev = await loadNeteaseUserSession();
+      const session: NeteaseUserSession = {
+        accessToken: parsed.accessToken,
+        refreshToken: parsed.refreshToken || refreshToken,
+        expireAt: parsed.expireAt,
+        openId: prev?.openId,
+        nickname: prev?.nickname,
+        avatar: prev?.avatar,
+        loginAt: prev?.loginAt || Date.now(),
+      };
+      await saveNeteaseUserSession(session);
+      return session;
+    }
+  }
+  return null;
+}
+
+export async function resolveOpenApiAccessToken(): Promise<{
+  token: string;
+  kind: 'user' | 'client';
+} | null> {
+  const user = await loadNeteaseUserSession();
+  const now = Date.now();
+  if (user?.accessToken) {
+    if (user.expireAt > now + 60_000) return { token: user.accessToken, kind: 'user' };
+    if (user.refreshToken) {
+      const refreshed = await refreshUserAccessToken(user.refreshToken);
+      if (refreshed) return { token: refreshed.accessToken, kind: 'user' };
+    }
+  }
   const config = getNeteaseOpenConfig();
   if (!config) return null;
-  const accessToken = await fetchAccessToken(config);
-  if (!accessToken) return null;
+  const client = await fetchClientAccessToken(config);
+  if (client) return { token: client, kind: 'client' };
+  return null;
+}
+
+export async function fetchOpenApiSongDetail(songId: string) {
+  const resolved = await resolveOpenApiAccessToken();
+  if (!resolved) return null;
+  const accessToken = resolved.token;
 
   const paths = [
     '/openapi/music/basic/song/detail/get/v2',
@@ -195,10 +263,8 @@ export async function fetchOpenApiSongDetail(songId: string) {
 }
 
 export async function fetchOpenApiPlayUrl(songId: string): Promise<string | null> {
-  const config = getNeteaseOpenConfig();
-  if (!config) return null;
-  const accessToken = await fetchAccessToken(config);
-  if (!accessToken) return null;
+  const resolved = await resolveOpenApiAccessToken();
+  if (!resolved) return null;
 
   const paths = [
     '/openapi/music/basic/song/playurl/get/v2',
@@ -209,8 +275,8 @@ export async function fetchOpenApiPlayUrl(songId: string): Promise<string | null
   for (const path of paths) {
     const data = await openApiGet<{ url?: string; playUrl?: string; data?: { url?: string }[] }>(
       path,
-      { songId, quality: 'standard' },
-      accessToken
+      { songId, quality: resolved.kind === 'user' ? 'exhigh' : 'standard' },
+      resolved.token
     );
     if (!data) continue;
     if (typeof data.url === 'string' && data.url) return data.url;
@@ -222,15 +288,13 @@ export async function fetchOpenApiPlayUrl(songId: string): Promise<string | null
 }
 
 export async function fetchOpenApiLyric(songId: string): Promise<string | null> {
-  const config = getNeteaseOpenConfig();
-  if (!config) return null;
-  const accessToken = await fetchAccessToken(config);
-  if (!accessToken) return null;
+  const resolved = await resolveOpenApiAccessToken();
+  if (!resolved) return null;
 
   const data = await openApiGet<{ lyric?: string; lrc?: string }>(
     '/openapi/music/basic/song/lyric/get/v2',
     { songId },
-    accessToken
+    resolved.token
   );
   return data?.lyric || data?.lrc || null;
 }

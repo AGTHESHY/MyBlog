@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import type { NeteaseAuthStatus } from '../../lib/netease-open-api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOperations } from '../../context/OperationContext';
 import { siteConfig } from '../../siteConfig';
@@ -23,10 +25,11 @@ import {
   filterValidNeteaseSongIds,
   normalizeNeteaseSongId,
   type NeteaseSongMeta,
-} from '../../lib/netease-music';
+} from '../../lib/netease-music-shared';
 
 function SettingsContent() {
   const { operations, addOperation } = useOperations();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState('profile');
   const { showToast } = useToast();
 
@@ -61,6 +64,41 @@ function SettingsContent() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchResults, setSearchResults] = useState<NeteaseSongMeta[]>([]);
   const [musicDetails, setMusicDetails] = useState<Record<string, any>>({});
+  const [neteaseAuth, setNeteaseAuth] = useState<NeteaseAuthStatus | null>(null);
+  const [neteaseAuthLoading, setNeteaseAuthLoading] = useState(false);
+
+  const fetchNeteaseAuthStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/music/netease/auth/status', { cache: 'no-store' });
+      const data = await res.json();
+      if (data.success) setNeteaseAuth(data.data);
+    } catch {
+      setNeteaseAuth(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab) setActiveTab(tab);
+
+    const netease = searchParams.get('netease');
+    if (netease === 'ok') {
+      setActiveTab('music');
+      showToast('网易云用户登录成功，已启用更高播放权限', 'success');
+      fetchNeteaseAuthStatus();
+    } else if (netease === 'denied') {
+      showToast('已取消网易云授权', 'warning');
+    } else if (netease === 'fail') {
+      const msg = searchParams.get('msg');
+      showToast(msg ? decodeURIComponent(msg) : '网易云登录失败', 'error');
+    } else if (netease === 'state_invalid') {
+      showToast('登录状态已过期，请重新点击登录', 'warning');
+    }
+  }, [searchParams, showToast, fetchNeteaseAuthStatus]);
+
+  useEffect(() => {
+    if (activeTab === 'music') fetchNeteaseAuthStatus();
+  }, [activeTab, fetchNeteaseAuthStatus]);
 
   useEffect(() => {
     const fetchRealConfig = async () => {
@@ -181,6 +219,37 @@ function SettingsContent() {
     setSearchLoading(false);
   };
 
+  const startNeteaseLogin = async () => {
+    setNeteaseAuthLoading(true);
+    try {
+      const res = await fetch('/api/music/netease/auth/login', { cache: 'no-store' });
+      const data = await res.json();
+      if (data.success && data.data?.url) {
+        window.location.href = data.data.url;
+        return;
+      }
+      showToast(data.message || '无法打开登录页', 'error');
+    } catch {
+      showToast('登录请求失败', 'error');
+    }
+    setNeteaseAuthLoading(false);
+  };
+
+  const logoutNetease = async () => {
+    setNeteaseAuthLoading(true);
+    try {
+      const res = await fetch('/api/music/netease/auth/logout', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        showToast('已退出网易云登录', 'success');
+        await fetchNeteaseAuthStatus();
+      }
+    } catch {
+      showToast('退出失败', 'error');
+    }
+    setNeteaseAuthLoading(false);
+  };
+
   const addSongToPlaylist = (song: NeteaseSongMeta) => {
     const targetId = String(song.id);
     const exists = formData.cloudMusicIds.some((id: string | number) => String(id) === targetId);
@@ -271,6 +340,10 @@ function SettingsContent() {
                   addSongToPlaylist={addSongToPlaylist}
                   removeSong={removeSong}
                   cloudMusicIds={formData.cloudMusicIds || []}
+                  neteaseAuth={neteaseAuth}
+                  neteaseAuthLoading={neteaseAuthLoading}
+                  onNeteaseLogin={startNeteaseLogin}
+                  onNeteaseLogout={logoutNetease}
                 />
               )}
               {activeTab === 'gallery' && <GallerySection key="gallery" formData={formData} handleUpdate={handleUpdate} pushToQueue={pushToQueue} />}
@@ -293,7 +366,13 @@ function SettingsContent() {
 export default function SettingsPage() {
   return (
     <ToastProvider>
-      <SettingsContent />
+      <Suspense
+        fallback={
+          <div className="min-h-screen flex items-center justify-center text-slate-500 text-sm">加载设置…</div>
+        }
+      >
+        <SettingsContent />
+      </Suspense>
     </ToastProvider>
   );
 }

@@ -6,6 +6,16 @@ import {
   fetchOpenApiSongDetail,
   isNeteaseOpenApiConfigured,
 } from './netease-open-api';
+import {
+  isLrcContent,
+  isLyricUrl,
+  normalizeNeteaseSongId,
+  type MetingSong,
+  type NeteaseSongMeta,
+  type NeteaseSongPlayable,
+} from './netease-music-shared';
+
+export * from './netease-music-shared';
 
 const METING_BASE = 'https://api.injahow.cn/meting/';
 
@@ -15,63 +25,42 @@ const NETEASE_HEADERS = {
   Referer: 'https://music.163.com/',
 };
 
-export type MetingSong = {
-  id: string | number;
-  name?: string;
-  title?: string;
-  author?: string;
-  artist?: string;
-  pic?: string;
-  cover?: string;
-  url?: string;
-  lrc?: string;
-};
-
-export type NeteaseSongMeta = {
-  id: string;
-  name: string;
-  artist: string;
-  album: string;
-  cover: string;
-};
-
-export type NeteaseSongPlayable = NeteaseSongMeta & {
-  src: string;
-  lrc: string;
-  lrcUrl: string;
-};
-
-/** 仅接受网易云纯数字歌曲 ID（拒绝酷狗 hash|album 等） */
-export function normalizeNeteaseSongId(raw: string): string | null {
-  const id = String(raw ?? '').trim();
-  if (!id) return null;
-  if (/[|#]/.test(id) || /^kg:/i.test(id) || /[a-f]{20,}/i.test(id)) return null;
-  if (!/^\d{4,12}$/.test(id)) return null;
-  return id;
+async function fetchTextFromUrl(url: string): Promise<string> {
+  try {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) return '';
+    return (await res.text()).trim();
+  } catch {
+    return '';
+  }
 }
 
-export function describeInvalidMusicId(raw: string): string {
-  const id = String(raw ?? '').trim();
-  if (!id) return 'ID 为空';
-  if (/[|#]/.test(id) || /^kg:/i.test(id)) {
-    return '这是酷狗格式 ID，请改为网易云歌曲页地址栏中的纯数字 ID';
+/** 通过 Meting 的 type=lrc 拉取歌词正文 */
+export async function fetchMetingLyric(songId: string): Promise<string> {
+  const id = normalizeNeteaseSongId(songId);
+  if (!id) return '';
+  const text = await fetchTextFromUrl(
+    `${METING_BASE}?server=netease&type=lrc&id=${encodeURIComponent(id)}`
+  );
+  if (isLrcContent(text)) return text;
+  try {
+    const json = JSON.parse(text);
+    if (typeof json === 'string' && isLrcContent(json)) return json;
+    if (typeof json?.lyric === 'string') return json.lyric;
+    if (typeof json?.lrc === 'string') return json.lrc;
+  } catch {
+    // 非 JSON，按纯文本
   }
-  if (!/^\d+$/.test(id)) return '请填写纯数字的网易云歌曲 ID';
-  if (id.length < 4) return '歌曲 ID 过短';
-  return '无效的歌曲 ID';
+  return isLyricUrl(text) ? '' : text;
 }
 
-export function filterValidNeteaseSongIds(ids: string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const raw of ids) {
-    const id = normalizeNeteaseSongId(raw);
-    if (id && !seen.has(id)) {
-      seen.add(id);
-      out.push(id);
-    }
+async function resolveLyricText(songId: string, hint?: string): Promise<string> {
+  if (hint && isLrcContent(hint)) return hint;
+  if (hint && isLyricUrl(hint)) {
+    const fromUrl = await fetchTextFromUrl(hint);
+    if (isLrcContent(fromUrl)) return fromUrl;
   }
-  return out;
+  return '';
 }
 
 export async function fetchMetingSong(songId: string): Promise<MetingSong | null> {
@@ -254,50 +243,34 @@ export async function fetchNeteaseSongPlayable(songId: string): Promise<NeteaseS
     };
   }
 
-  let lrc = '';
-  if (isNeteaseOpenApiConfigured()) {
-    lrc = (await fetchOpenApiLyric(id)) || '';
-  }
-  if (!lrc) {
-    const meting = await fetchMetingSong(id);
-    lrc = meting?.lrc || '';
-  }
-  if (!lrc) {
-    lrc = await fetchPublicLyric(id);
-  }
-
-  const lrcUrl = lrc ? '' : `https://music.163.com/api/song/lyric?id=${id}&lv=-1&kv=-1&tv=-1`;
+  const lrc = await fetchNeteaseSongLyric(id);
 
   return {
     ...meta,
     src,
     lrc,
-    lrcUrl,
+    lrcUrl: '',
   };
 }
 
-export function mapMetingToPlaylistItem(song: MetingSong, fallbackId: string) {
-  return {
-    id: song.id || fallbackId,
-    title: song.name || song.title || '未知歌曲',
-    artist: song.author || song.artist || '未知歌手',
-    cover: song.pic || song.cover || 'https://bu.dusays.com/2026/03/24/69c24230a5ff8.jpg',
-    src: song.url || '',
-    lrcUrl: song.lrc || '',
-    lrc: '',
-    lyrics: [] as { time: number; text: string }[],
-  };
-}
+/** 仅拉取歌词正文（供 /api/music/lyric 与播放聚合复用） */
+export async function fetchNeteaseSongLyric(songId: string): Promise<string> {
+  const id = normalizeNeteaseSongId(songId);
+  if (!id) return '';
 
-export function mapPlayableToPlaylistItem(song: NeteaseSongPlayable) {
-  return {
-    id: song.id,
-    title: song.name,
-    artist: song.artist,
-    cover: song.cover || 'https://bu.dusays.com/2026/03/24/69c24230a5ff8.jpg',
-    src: song.src,
-    lrcUrl: song.lrcUrl,
-    lrc: song.lrc,
-    lyrics: [] as { time: number; text: string }[],
-  };
+  let lrc = '';
+  if (isNeteaseOpenApiConfigured()) {
+    lrc = (await fetchOpenApiLyric(id)) || '';
+  }
+  if (!lrc) {
+    lrc = await fetchPublicLyric(id);
+  }
+  if (!lrc) {
+    const meting = await fetchMetingSong(id);
+    lrc = (await resolveLyricText(id, meting?.lrc)) || (await fetchMetingLyric(id));
+  }
+  if (lrc && isLyricUrl(lrc)) {
+    lrc = (await resolveLyricText(id, lrc)) || (await fetchMetingLyric(id));
+  }
+  return lrc && !isLyricUrl(lrc) ? lrc : '';
 }

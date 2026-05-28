@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useRef, useEffect, ReactNode } from 'react';
 import { siteConfig } from '../siteConfig';
-import { filterValidNeteaseSongIds, mapPlayableToPlaylistItem } from '../lib/netease-music';
+import { filterValidNeteaseSongIds, isLyricUrl, mapPlayableToPlaylistItem } from '../lib/netease-music-shared';
 
 type LoadStatus = 'loading' | 'ready' | 'empty' | 'failed';
 
@@ -169,10 +169,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       });
     };
 
-    if (typeof currentSong.lrc === 'string' && currentSong.lrc.length > 0) {
-      if (isMounted) loadLyrics(currentSong.lrc);
-    } else if (currentSong.lrcUrl) {
-      fetch(currentSong.lrcUrl)
+    const loadLyricsFromUrl = (url: string) => {
+      fetch(url, { cache: 'no-store' })
         .then((res) => res.text())
         .then((text) => {
           if (isMounted) loadLyrics(text);
@@ -180,6 +178,23 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         .catch(() => {
           if (isMounted) setCurrentLyric('♪ 纯享音乐 ♪');
         });
+    };
+
+    if (Array.isArray(currentSong.lyrics) && currentSong.lyrics.length > 0) {
+      if (isMounted) {
+        setLyrics(currentSong.lyrics);
+        setCurrentLyric(currentSong.lyrics[0]?.text || '♪ 纯享音乐 ♪');
+      }
+    } else if (typeof currentSong.lrc === 'string' && currentSong.lrc.length > 0) {
+      if (isLyricUrl(currentSong.lrc)) {
+        loadLyricsFromUrl(currentSong.lrc);
+      } else if (isMounted) {
+        loadLyrics(currentSong.lrc);
+      }
+    } else if (currentSong.lrcUrl) {
+      loadLyricsFromUrl(currentSong.lrcUrl);
+    } else if (currentSong.id) {
+      loadLyricsFromUrl(`/api/music/lyric/${encodeURIComponent(String(currentSong.id))}`);
     } else if (isMounted) {
       setCurrentLyric('♪ 纯享音乐 ♪');
     }

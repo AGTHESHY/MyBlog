@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import type { NeteaseSongMeta } from '../../lib/netease-music';
+import type { NeteaseSongMeta } from '../../lib/netease-music-shared';
+import type { NeteaseAuthStatus } from '../../lib/netease-open-api';
 
 type MusicSectionProps = {
   formData: any;
@@ -13,6 +14,10 @@ type MusicSectionProps = {
   addSongToPlaylist: (song: NeteaseSongMeta) => void;
   removeSong: (index: number) => void;
   cloudMusicIds: string[];
+  neteaseAuth: NeteaseAuthStatus | null;
+  neteaseAuthLoading: boolean;
+  onNeteaseLogin: () => void;
+  onNeteaseLogout: () => void;
 };
 
 export default function MusicSection({
@@ -27,8 +32,13 @@ export default function MusicSection({
   addSongToPlaylist,
   removeSong,
   cloudMusicIds,
+  neteaseAuth,
+  neteaseAuthLoading,
+  onNeteaseLogin,
+  onNeteaseLogout,
 }: MusicSectionProps) {
   const idSet = new Set(cloudMusicIds.map(String));
+  const userLoggedIn = neteaseAuth?.loggedIn && neteaseAuth.tokenKind === 'user';
 
   return (
     <motion.section
@@ -37,7 +47,70 @@ export default function MusicSection({
       exit={{ opacity: 0, x: -10 }}
       className="bg-white/40 dark:bg-slate-900/40 backdrop-blur-2xl border border-white/50 dark:border-slate-800/50 rounded-[40px] p-8 shadow-2xl"
     >
-      <h2 className="text-xl font-black text-slate-800 dark:text-white mb-8">🎵 歌单管理与搜索</h2>
+      <h2 className="text-xl font-black text-slate-800 dark:text-white mb-4">🎵 歌单管理与搜索</h2>
+
+      <div
+        className={`mb-8 p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+          userLoggedIn
+            ? 'bg-green-500/10 border-green-400/40'
+            : 'bg-amber-500/10 border-amber-400/30'
+        }`}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          {userLoggedIn && neteaseAuth?.user?.avatar ? (
+            <img src={neteaseAuth.user.avatar} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center shrink-0 text-lg">
+              ☁️
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="text-xs font-black text-slate-800 dark:text-white">
+              {userLoggedIn
+                ? `已登录：${neteaseAuth?.user?.nickname || '网易云用户'}`
+                : neteaseAuth?.configured
+                  ? '未登录网易云用户'
+                  : '未配置开放平台'}
+            </p>
+            <p className="text-[10px] text-slate-500 leading-relaxed mt-0.5">
+              {userLoggedIn
+                ? '当前使用用户级 token，可获取更高码率与 VIP 曲目播放权限'
+                : neteaseAuth?.message ||
+                  '按官方文档登录用户后，播放与搜索将使用更高权限（需配置 redirectUri）'}
+            </p>
+            <a
+              href="https://developer.music.163.com/st/developer/document?docId=1a5fb2c7b30b44609fa81129a8e1908d"
+              target="_blank"
+              rel="noreferrer"
+              className="text-[10px] text-indigo-500 hover:underline mt-1 inline-block"
+            >
+              查看用户登录文档 →
+            </a>
+          </div>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          {userLoggedIn ? (
+            <button
+              type="button"
+              onClick={onNeteaseLogout}
+              disabled={neteaseAuthLoading}
+              className="px-4 py-2 rounded-xl text-xs font-black bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 disabled:opacity-50"
+            >
+              退出登录
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onNeteaseLogin}
+              disabled={neteaseAuthLoading || !neteaseAuth?.configured}
+              className="px-4 py-2 rounded-xl text-xs font-black bg-red-500 text-white shadow-lg shadow-red-500/20 disabled:opacity-50"
+            >
+              {neteaseAuthLoading ? '跳转中…' : '网易云账号登录'}
+            </button>
+          )}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
         <div className="space-y-3">
           <p className="text-[10px] font-black text-slate-400 uppercase ml-1 mb-4">
@@ -185,7 +258,7 @@ export default function MusicSection({
             加入操作队列（同步 siteConfig 文件）
           </button>
           <p className="text-[10px] text-slate-500 leading-relaxed">
-            无需手动查歌曲 ID：搜索歌名或歌手即可添加。系统会在后台自动保存网易云 ID 用于播放。
+            搜索歌名即可添加；建议先完成上方「网易云账号登录」。在开放平台控制台配置回调地址与 .env 中 NETEASE_REDIRECT_URI 一致。
           </p>
         </div>
       </div>

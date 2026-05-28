@@ -31,18 +31,7 @@ export default function MusicClient() {
       return;
     }
 
-    const rawLrc = currentSong.lrc || currentSong.lyric || (typeof currentSong.lyrics === 'string' ? currentSong.lyrics : '');
-
-    if (Array.isArray(currentSong.lyrics) && currentSong.lyrics.length > 0) {
-      setParsedLyrics(currentSong.lyrics);
-      return;
-    }
-
-    if (!rawLrc || typeof rawLrc !== 'string') {
-      setParsedLyrics([]);
-      return;
-    }
-
+    const parseLrcText = (rawLrc: string) => {
     const lines = rawLrc.split('\n');
     const parsed = [];
     const timeExp = /\[(\d{2,}):(\d{2})(?:[.:](\d{2,3}))?\]/g;
@@ -65,9 +54,47 @@ export default function MusicClient() {
     if (hasValidTime) {
       setParsedLyrics(parsed.sort((a, b) => a.time - b.time));
     } else {
-      setParsedLyrics(lines.map(l => ({ time: -1, text: l.trim() })).filter(l => l.text));
+      setParsedLyrics([]);
     }
-  }, [currentSong?.id, currentSong?.lyric, currentSong?.lrc, currentSong?.lyrics]);
+    };
+
+    if (Array.isArray(currentSong.lyrics) && currentSong.lyrics.length > 0 && currentSong.lyrics[0]?.time >= 0) {
+      setParsedLyrics(currentSong.lyrics);
+      return;
+    }
+
+    const rawLrc = currentSong.lrc || currentSong.lyric || '';
+    const isUrl = typeof rawLrc === 'string' && /^https?:\/\//i.test(rawLrc.trim());
+
+    if (typeof rawLrc === 'string' && rawLrc.length > 0 && !isUrl) {
+      parseLrcText(rawLrc);
+      return;
+    }
+
+    const lyricUrl =
+      (isUrl ? rawLrc : '') ||
+      currentSong.lrcUrl ||
+      (currentSong.id ? `/api/music/lyric/${currentSong.id}` : '');
+
+    if (!lyricUrl) {
+      setParsedLyrics([]);
+      return;
+    }
+
+    let cancelled = false;
+    fetch(lyricUrl, { cache: 'no-store' })
+      .then((res) => res.text())
+      .then((text) => {
+        if (!cancelled) parseLrcText(text);
+      })
+      .catch(() => {
+        if (!cancelled) setParsedLyrics([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentSong?.id, currentSong?.lyric, currentSong?.lrc, currentSong?.lyrics, currentSong?.lrcUrl]);
 
   const activeLyricIndex = useMemo(() => {
     if (!parsedLyrics.length) return -1;

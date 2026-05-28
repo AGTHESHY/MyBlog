@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useRef, useEffect, ReactNode } from 'react';
 import { siteConfig } from '../siteConfig';
-import { filterValidNeteaseSongIds, mapPlayableToPlaylistItem } from '../lib/netease-music';
+import { filterValidNeteaseSongIds, mapPlayableToPlaylistItem } from '../lib/netease-music-shared';
 
 type LoadStatus = 'loading' | 'ready' | 'empty' | 'failed';
 

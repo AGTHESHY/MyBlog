@@ -4,7 +4,7 @@ import ChatterBoard from './ChatterBoard';
 import { getChatters } from '../../lib/content-store';
 
 export const metadata = {
-  title: "杂谈 | XingHuiSama の 博客",
+  title: "杂谈 | 等一瞥惊鸿 の 博客",
   description: "日常碎片与灵感记录",
 };
 
