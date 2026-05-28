@@ -26,6 +26,9 @@ const notoSerif = Noto_Serif_SC({
   display: 'swap',
 });
 
+// 数据来自 MySQL，构建阶段无数据库，避免 Docker 构建时连接失败
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: siteConfig.title,
   description: siteConfig.bio,

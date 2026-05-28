@@ -23,8 +23,12 @@ import SidebarLyric from '../../../components/SidebarLyric';
 import { getPostBySlug, getRecentPosts, listPostSlugs } from '../../../lib/content-store';
 
 export async function generateStaticParams() {
-  const slugs = await listPostSlugs();
-  return slugs.map((slug) => ({ slug }));
+  try {
+    const slugs = await listPostSlugs();
+    return slugs.map((slug) => ({ slug }));
+  } catch {
+    return [];
+  }
 }
 
 function extractToc(content: string) {

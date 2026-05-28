@@ -24,6 +24,9 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 const notoSerif = Noto_Serif_SC({ subsets: ["latin"], weight: ["400", "700", "900"], variable: "--font-serif", display: 'swap' });
 
+// 数据来自 MySQL，构建阶段无数据库，避免 Docker 构建时连接失败
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: siteConfig.title,
   description: siteConfig.bio,

@@ -23,8 +23,12 @@ import Comments from '../../../components/Comments';
 import { getChatterBySlug, getRecentChatters, listChatterSlugs } from '../../../lib/content-store';
 
 export async function generateStaticParams() {
-  const slugs = await listChatterSlugs();
-  return slugs.map((slug) => ({ slug }));
+  try {
+    const slugs = await listChatterSlugs();
+    return slugs.map((slug) => ({ slug }));
+  } catch {
+    return [];
+  }
 }
 
 async function getChatterData(slug: string) {

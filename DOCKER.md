@@ -16,6 +16,7 @@
 ### 1. 准备环境
 
 - 安装 [Docker Desktop](https://www.docker.com/products/docker-desktop/)（含 Docker Compose）
+- **不需要**在本机安装 Node.js / npm：依赖会在 `node:20-alpine` 镜像构建阶段由容器内的 npm 自动安装
 
 若本机已有名为 `mysql` 的旧容器且占用 **3306**，请先停止，或在 `.env` 里改 `MYSQL_PORT=3307`。
 
@@ -34,7 +35,7 @@ copy .env.example .env
 docker compose up -d --build
 ```
 
-首次构建需下载镜像并编译 Next.js，约 5–15 分钟。
+首次构建需下载镜像并编译 Next.js，约 5–15 分钟（依赖在镜像内通过 `npm install` 安装，**无需本机 npm**）。
 
 ### 4. 访问
 
@@ -76,6 +77,28 @@ docker compose up -d --build
 ```
 
 或进入 MySQL 容器手动执行 `reset_mysql.sql` + `init_mysql.sql`（须带 `--default-character-set=utf8mb4`）。
+
+## 构建失败：`ECONNRESET` / network aborted
+
+多为拉取 npm 包时网络中断。可依次尝试：
+
+1. **直接重试**（经常是偶发）：
+   ```powershell
+   docker compose build --no-cache blog-manager
+   docker compose up -d
+   ```
+2. **改用官方源**（在 `.env` 中设置后重新 build）：
+   ```env
+   NPM_REGISTRY=https://registry.npmjs.org
+   ```
+3. **分开构建**（减轻并发下载压力）：
+   ```powershell
+   docker compose build xhblogs
+   docker compose build blog-manager
+   docker compose up -d
+   ```
+
+默认已使用国内 npmmirror，并开启 npm 重试。
 
 ## 说明
 

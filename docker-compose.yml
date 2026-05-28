@@ -39,6 +39,8 @@ services:
     build:
       context: ./XHBlogs
       dockerfile: Dockerfile
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
     container_name: xhblogs-web
     restart: unless-stopped
     ports:
@@ -58,6 +60,8 @@ services:
     build:
       context: ./my-blog-manager
       dockerfile: Dockerfile
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
     container_name: xhblogs-manager
     restart: unless-stopped
     ports:
@@ -87,7 +91,7 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
-    command: sh -c "npm ci && node ../scripts/migrations/migrate_to_mysql.mjs"
+    command: sh -c "npm install && node ../scripts/migrations/migrate_to_mysql.mjs"
 
 volumes:
   mysql_data:

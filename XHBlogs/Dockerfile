@@ -1,14 +1,19 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
+ARG NPM_REGISTRY=https://registry.npmmirror.com
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm config set registry "${NPM_REGISTRY}" \
+    && npm config set fetch-retries 5 \
+    && npm config set fetch-retry-mintimeout 20000 \
+    && npm config set fetch-retry-maxtimeout 120000 \
+    && npm config set maxsockets 5 \
+    && npm install
 
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV DATABASE_URL=mysql://root:root@mysql:3306/xhblogs
 RUN npm run build
 
 FROM node:20-alpine AS runner
