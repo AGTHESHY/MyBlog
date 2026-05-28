@@ -9,6 +9,12 @@ import {
 
 const METING_BASE = 'https://api.injahow.cn/meting/';
 
+const NETEASE_HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  Referer: 'https://music.163.com/',
+};
+
 export type MetingSong = {
   id: string | number;
   name?: string;
@@ -108,6 +114,52 @@ async function fetchPublicSongMeta(songId: string): Promise<NeteaseSongMeta | nu
   } catch {
     return null;
   }
+}
+
+function mapSearchHit(song: {
+  id?: number | string;
+  name?: string;
+  artists?: { name?: string }[];
+  album?: { name?: string; picUrl?: string };
+}): NeteaseSongMeta | null {
+  const id = normalizeNeteaseSongId(String(song.id ?? ''));
+  if (!id || !song.name) return null;
+  return {
+    id,
+    name: song.name,
+    artist: song.artists?.map((a) => a.name).filter(Boolean).join(' / ') || '未知歌手',
+    album: song.album?.name || '',
+    cover: song.album?.picUrl || '',
+  };
+}
+
+/** 按歌名 / 歌手关键词搜索 */
+export async function searchNeteaseSongs(keyword: string, limit = 10): Promise<NeteaseSongMeta[]> {
+  const q = keyword.trim();
+  if (!q) return [];
+
+  const cap = Math.min(Math.max(limit, 1), 30);
+  const endpoints = [
+    `https://music.163.com/api/search/get/web?s=${encodeURIComponent(q)}&type=1&limit=${cap}`,
+    `https://music.163.com/api/cloudsearch/pc?s=${encodeURIComponent(q)}&type=1&limit=${cap}`,
+  ];
+
+  for (const apiUrl of endpoints) {
+    try {
+      const res = await fetch(apiUrl, { headers: NETEASE_HEADERS, cache: 'no-store' });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const songs = data?.result?.songs;
+      if (!Array.isArray(songs) || songs.length === 0) continue;
+      return songs
+        .map((song: Parameters<typeof mapSearchHit>[0]) => mapSearchHit(song))
+        .filter((s): s is NeteaseSongMeta => !!s)
+        .slice(0, cap);
+    } catch {
+      continue;
+    }
+  }
+  return [];
 }
 
 export async function fetchNeteaseSongMeta(songId: string): Promise<NeteaseSongMeta | null> {
