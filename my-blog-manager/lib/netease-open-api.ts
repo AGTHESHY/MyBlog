@@ -402,8 +402,175 @@ export async function getNeteaseAuthStatus(): Promise<NeteaseAuthStatus> {
     configured: true,
     loggedIn: false,
     tokenKind: client ? 'client' : 'none',
-    message: client ? '当前为应用匿名 token，登录用户后可获取更高播放权限' : '无法获取应用 token',
+    message: client
+      ? '默认使用匿名 token；使用网易云 App 扫码登录后可获取更高播放权限'
+      : '无法获取匿名 token，请检查开放平台凭证',
   };
+}
+
+/** 二维码有效期（官方约 2 分钟） */
+export const NETEASE_QR_TTL_MS = 120_000;
+
+export const NETEASE_QR_DOC =
+  'https://developer.music.163.com/st/developer/document?docId=2bb12a93e71a4be0842243b930c2f33c';
+
+function pickUnikey(data: Record<string, unknown> | null | undefined): string {
+  if (!data) return '';
+  const key = data.unikey ?? data.uniKey ?? data.key ?? data.qrKey;
+  return key ? String(key) : '';
+}
+
+function pickStatusCode(data: Record<string, unknown> | null | undefined): number {
+  if (!data) return 0;
+  const raw = data.code ?? data.status ?? data.loginCode ?? data.scanCode;
+  if (typeof raw === 'number') return raw;
+  const n = parseInt(String(raw), 10);
+  return Number.isFinite(n) ? n : 0;
+}
+
+async function saveUserSessionFromTokenPayload(
+  data: Record<string, unknown>,
+  parsed: { accessToken: string; refreshToken?: string; expireAt: number }
+): Promise<NeteaseUserSession> {
+  let session: NeteaseUserSession = {
+    accessToken: parsed.accessToken,
+    refreshToken: parsed.refreshToken,
+    expireAt: parsed.expireAt,
+    openId: data.openId ? String(data.openId) : undefined,
+    nickname: data.nickname ? String(data.nickname) : data.nickName ? String(data.nickName) : undefined,
+    avatar: data.avatarUrl ? String(data.avatarUrl) : data.avatar ? String(data.avatar) : undefined,
+    loginAt: Date.now(),
+  };
+  const profile = await fetchOpenApiUserProfile(parsed.accessToken);
+  if (profile) session = { ...session, ...profile };
+  await saveNeteaseUserSession(session);
+  clientTokenCache = null;
+  return session;
+}
+
+/** 生成扫码登录 unikey（开放平台二维码登录） */
+export async function createOpenApiQrLogin(): Promise<{
+  unikey: string;
+  message?: string;
+}> {
+  if (!isNeteaseOpenApiConfigured()) {
+    return { unikey: '', message: '未配置开放平台凭证' };
+  }
+
+  const paths = [
+    '/openapi/oauth2/login/qrcode/unikey/get/v2',
+    '/openapi/oauth2/qrcode/unikey/get/v2',
+    '/openapi/oauth2/qrcode/key/get/v2',
+  ];
+  const bizVariants: Record<string, unknown>[] = [{ type: 1 }, { type: '1' }, {}];
+
+  for (const path of paths) {
+    for (const biz of bizVariants) {
+      const data = await openApiGet<Record<string, unknown>>(path, biz);
+      const unikey = pickUnikey(data);
+      if (unikey) return { unikey };
+    }
+  }
+
+  return { unikey: '', message: '无法生成登录二维码，请确认应用已开通二维码登录能力' };
+}
+
+export type NeteaseQrPollStatus = 'waiting' | 'scanned' | 'expired' | 'success' | 'error';
+
+/** 轮询扫码状态；803 为登录成功 */
+export async function pollOpenApiQrLogin(unikey: string): Promise<{
+  status: NeteaseQrPollStatus;
+  message?: string;
+  session?: NeteaseUserSession;
+}> {
+  if (!unikey) return { status: 'error', message: '缺少二维码 key' };
+
+  const paths = [
+    '/openapi/oauth2/login/qrcode/client/login/get/v2',
+    '/openapi/oauth2/qrcode/client/login/get/v2',
+    '/openapi/oauth2/qrcode/check/get/v2',
+  ];
+  const bizVariants: Record<string, unknown>[] = [
+    { key: unikey, type: 1 },
+    { key: unikey, type: '1' },
+    { unikey, type: 1 },
+    { key: unikey },
+  ];
+
+  for (const path of paths) {
+    for (const biz of bizVariants) {
+      const result = await openApiRequest<Record<string, unknown>>(path, biz);
+      if (!result.ok || !result.data) continue;
+
+      const data = result.data;
+      const code = pickStatusCode(data);
+
+      if (code === 800) return { status: 'expired', message: '二维码已过期，请刷新后重试' };
+      if (code === 801) return { status: 'waiting', message: '请使用网易云音乐 App 扫码' };
+      if (code === 802) return { status: 'scanned', message: '已扫码，请在手机上确认登录' };
+
+      const directToken = data.accessToken || data.token;
+      if (code === 803 || (typeof directToken === 'string' && directToken)) {
+        const parsed = parseTokenPayload({
+          accessToken: typeof directToken === 'string' ? directToken : undefined,
+          token: typeof data.token === 'string' ? data.token : undefined,
+          refreshToken: typeof data.refreshToken === 'string' ? data.refreshToken : undefined,
+          expireTime: typeof data.expireTime === 'number' ? data.expireTime : undefined,
+          expiresIn: typeof data.expiresIn === 'number' ? data.expiresIn : undefined,
+        });
+        if (parsed) {
+          const session = await saveUserSessionFromTokenPayload(data, parsed);
+          return { status: 'success', session };
+        }
+
+        const exchanged = await exchangeQrKeyForUserToken(unikey);
+        if (exchanged.session) return { status: 'success', session: exchanged.session };
+        return { status: 'error', message: exchanged.message || '扫码成功但换取 token 失败' };
+      }
+    }
+  }
+
+  return { status: 'waiting', message: '等待扫码…' };
+}
+
+async function exchangeQrKeyForUserToken(unikey: string) {
+  const paths = [
+    '/openapi/oauth2/login/qrcode/access/token/get/v2',
+    '/openapi/oauth2/qrcode/access/token/get/v2',
+    '/openapi/oauth2/qrcode/token/get/v2',
+  ];
+  const bizVariants: Record<string, unknown>[] = [
+    { key: unikey, type: 1 },
+    { unikey, type: 1 },
+    { key: unikey },
+  ];
+
+  for (const path of paths) {
+    for (const biz of bizVariants) {
+      const result = await openApiRequest<Record<string, unknown>>(path, biz);
+      if (!result.ok || !result.data) continue;
+      const parsed = parseTokenPayload({
+        accessToken:
+          typeof result.data.accessToken === 'string' ? result.data.accessToken : undefined,
+        token: typeof result.data.token === 'string' ? result.data.token : undefined,
+        refreshToken:
+          typeof result.data.refreshToken === 'string' ? result.data.refreshToken : undefined,
+        expireTime:
+          typeof result.data.expireTime === 'number' ? result.data.expireTime : undefined,
+        expiresIn: typeof result.data.expiresIn === 'number' ? result.data.expiresIn : undefined,
+      });
+      if (!parsed) continue;
+      const session = await saveUserSessionFromTokenPayload(result.data, parsed);
+      return { session };
+    }
+  }
+  return { session: null, message: '二维码登录换 token 失败' };
+}
+
+export function buildNeteaseQrImageUrl(unikey: string) {
+  const qrUrl = `https://music.163.com/login?codekey=${encodeURIComponent(unikey)}`;
+  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrUrl)}`;
+  return { qrUrl, qrImageUrl };
 }
 
 export async function fetchOpenApiSongDetail(songId: string) {

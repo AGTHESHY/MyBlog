@@ -5,10 +5,10 @@ import { filterValidNeteaseSongIds } from './netease-music';
 /** 博客播放列表：优先 MySQL（管理后台写入），回退 siteConfig.ts；仅保留合法网易云数字 ID */
 export async function getCloudMusicIds(): Promise<string[]> {
   const raw = await getSiteSetting('cloudMusicIds');
-  if (raw) {
+  if (raw !== null && raw !== '') {
     try {
       const parsed = JSON.parse(raw) as unknown;
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return filterValidNeteaseSongIds(parsed.map((id) => String(id)));
       }
     } catch {

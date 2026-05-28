@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useRef, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useRef, useEffect, useCallback, ReactNode } from 'react';
 import { siteConfig } from '../siteConfig';
 import { filterValidNeteaseSongIds, mapPlayableToPlaylistItem } from '../lib/netease-music-shared';
 
@@ -76,77 +76,105 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const [playMode, setPlayMode] = useState<PlayMode>('loop');
 
   const audioRef = useRef<HTMLAudioElement>(null);
+  const sourceIdsRef = useRef('');
 
-  useEffect(() => {
-    let isMounted = true;
-    const fetchMusicData = async () => {
+  const syncPlaylistFromServer = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent;
+    if (!silent) {
       setIsLoading(true);
       setLoadStatus('loading');
+    }
+
+    try {
+      let musicIds: string[] = [];
       try {
-        let musicIds = filterValidNeteaseSongIds([...(siteConfig.cloudMusicIds || [])].map(String));
-        try {
-          const cfgRes = await fetch('/api/site/cloud-music-ids', { cache: 'no-store' });
-          const cfgJson = await cfgRes.json();
-          if (cfgJson?.success && Array.isArray(cfgJson.data?.ids)) {
-            musicIds = filterValidNeteaseSongIds(cfgJson.data.ids.map(String));
-          }
-        } catch {
-          // 回退 siteConfig
-        }
-
-        if (musicIds.length === 0) {
-          if (isMounted) {
-            setLoadStatus('empty');
-            setLoadMessage('尚未配置网易云歌曲 ID。');
-            setCurrentLyric('暂无曲目');
-            setIsLoading(false);
-          }
-          return;
-        }
-
-        const results = await Promise.all(
-          musicIds.map(async (id) => {
-            try {
-              const res = await fetch(`/api/music/play/${encodeURIComponent(id)}`, { cache: 'no-store' });
-              const json = await res.json();
-              if (!json?.success || !json.data?.src) return null;
-              return mapPlayableToPlaylistItem(json.data);
-            } catch {
-              return null;
-            }
-          })
-        );
-
-        const mergedPlaylist = results.filter((s): s is NonNullable<typeof s> => !!s && !!s.src);
-
-        if (isMounted) {
-          if (mergedPlaylist.length > 0) {
-            setPlaylist(mergedPlaylist);
-            setLoadStatus('ready');
-            setLoadMessage('');
-          } else {
-            setLoadStatus('failed');
-            setLoadMessage(
-              `已配置 ${musicIds.length} 首，但无法获取播放地址。请确认网易云数字 ID，并配置 NETEASE_APP_ID / NETEASE_APP_SECRET / NETEASE_PRIVATE_KEY。`
-            );
-            setCurrentLyric('云端链路受阻');
-          }
-          setIsLoading(false);
+        const cfgRes = await fetch('/api/site/cloud-music-ids', { cache: 'no-store' });
+        const cfgJson = await cfgRes.json();
+        if (cfgJson?.success && Array.isArray(cfgJson.data?.ids)) {
+          musicIds = filterValidNeteaseSongIds(cfgJson.data.ids.map(String));
+        } else {
+          musicIds = filterValidNeteaseSongIds([...(siteConfig.cloudMusicIds || [])].map(String));
         }
       } catch {
-        if (isMounted) {
-          setLoadStatus('failed');
-          setLoadMessage('网络初始化失败');
-          setIsLoading(false);
-        }
+        musicIds = filterValidNeteaseSongIds([...(siteConfig.cloudMusicIds || [])].map(String));
+      }
+
+      const idsKey = musicIds.join('|');
+      if (silent && idsKey === sourceIdsRef.current) return;
+      sourceIdsRef.current = idsKey;
+
+      if (musicIds.length === 0) {
+        setPlaylist([]);
+        setCurrentIndex(0);
+        setIsPlaying(false);
+        setLoadStatus('empty');
+        setLoadMessage('播放列表为空，请在「设置 → 音乐播放设置」中添加歌曲。');
+        setCurrentLyric('暂无曲目');
+        return;
+      }
+
+      const results = await Promise.all(
+        musicIds.map(async (id) => {
+          try {
+            const res = await fetch(`/api/music/play/${encodeURIComponent(id)}`, { cache: 'no-store' });
+            const json = await res.json();
+            if (!json?.success || !json.data?.src) return null;
+            return mapPlayableToPlaylistItem(json.data);
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      const mergedPlaylist = results.filter((s): s is NonNullable<typeof s> => !!s && !!s.src);
+
+      if (mergedPlaylist.length > 0) {
+        setPlaylist(mergedPlaylist);
+        setCurrentIndex((idx) => Math.min(idx, mergedPlaylist.length - 1));
+        setLoadStatus('ready');
+        setLoadMessage('');
+      } else {
+        setPlaylist([]);
+        setCurrentIndex(0);
+        setLoadStatus('failed');
+        setLoadMessage(
+          `已配置 ${musicIds.length} 首，但无法获取播放地址。请确认网易云数字 ID，并配置 NETEASE_APP_ID / NETEASE_APP_SECRET / NETEASE_PRIVATE_KEY。`
+        );
+        setCurrentLyric('云端链路受阻');
+      }
+    } catch {
+      setLoadStatus('failed');
+      setLoadMessage('网络初始化失败');
+    } finally {
+      if (!silent) setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      if (!cancelled) await syncPlaylistFromServer();
+    };
+    run();
+
+    const timer = setInterval(() => {
+      if (!cancelled) syncPlaylistFromServer({ silent: true });
+    }, 6000);
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        syncPlaylistFromServer({ silent: true });
       }
     };
+    document.addEventListener('visibilitychange', onVisible);
 
-    fetchMusicData();
     return () => {
-      isMounted = false;
+      cancelled = true;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
     };
-  }, []);
+  }, [syncPlaylistFromServer]);
 
   useEffect(() => {
     if (playlist.length === 0) return;

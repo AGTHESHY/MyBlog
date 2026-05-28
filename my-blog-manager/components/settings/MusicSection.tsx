@@ -16,7 +16,13 @@ type MusicSectionProps = {
   cloudMusicIds: string[];
   neteaseAuth: NeteaseAuthStatus | null;
   neteaseAuthLoading: boolean;
+  neteaseShowQr: boolean;
+  neteaseQrImage: string;
+  neteaseQrStatus: string;
+  neteaseQrCountdown: number;
   onNeteaseLogin: () => void;
+  onNeteaseRefreshQr: () => void;
+  onNeteaseCancelQr: () => void;
   onNeteaseLogout: () => void;
 };
 
@@ -34,11 +40,18 @@ export default function MusicSection({
   cloudMusicIds,
   neteaseAuth,
   neteaseAuthLoading,
+  neteaseShowQr,
+  neteaseQrImage,
+  neteaseQrStatus,
+  neteaseQrCountdown,
   onNeteaseLogin,
+  onNeteaseRefreshQr,
+  onNeteaseCancelQr,
   onNeteaseLogout,
 }: MusicSectionProps) {
   const idSet = new Set(cloudMusicIds.map(String));
   const userLoggedIn = neteaseAuth?.loggedIn && neteaseAuth.tokenKind === 'user';
+  const anonymousReady = neteaseAuth?.configured && neteaseAuth.tokenKind === 'client';
 
   return (
     <motion.section
@@ -68,23 +81,25 @@ export default function MusicSection({
             <p className="text-xs font-black text-slate-800 dark:text-white">
               {userLoggedIn
                 ? `已登录：${neteaseAuth?.user?.nickname || '网易云用户'}`
-                : neteaseAuth?.configured
-                  ? '未登录网易云用户'
-                  : '未配置开放平台'}
+                : anonymousReady
+                  ? '匿名模式（应用 token）'
+                  : neteaseAuth?.configured
+                    ? '开放平台已配置'
+                    : '未配置开放平台'}
             </p>
             <p className="text-[10px] text-slate-500 leading-relaxed mt-0.5">
               {userLoggedIn
                 ? '当前使用用户级 token，可获取更高码率与 VIP 曲目播放权限'
                 : neteaseAuth?.message ||
-                  '按官方文档登录用户后，播放与搜索将使用更高权限（需配置 redirectUri）'}
+                  '默认使用匿名 token；扫码登录后可播放更多 VIP 曲目'}
             </p>
             <a
-              href="https://developer.music.163.com/st/developer/document?docId=1a5fb2c7b30b44609fa81129a8e1908d"
+              href="https://developer.music.163.com/st/developer/document?docId=2bb12a93e71a4be0842243b930c2f33c"
               target="_blank"
               rel="noreferrer"
               className="text-[10px] text-indigo-500 hover:underline mt-1 inline-block"
             >
-              查看用户登录文档 →
+              查看二维码登录文档 →
             </a>
           </div>
         </div>
@@ -99,17 +114,63 @@ export default function MusicSection({
               退出登录
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={onNeteaseLogin}
-              disabled={neteaseAuthLoading || !neteaseAuth?.configured}
-              className="px-4 py-2 rounded-xl text-xs font-black bg-red-500 text-white shadow-lg shadow-red-500/20 disabled:opacity-50"
-            >
-              {neteaseAuthLoading ? '跳转中…' : '网易云账号登录'}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={onNeteaseLogin}
+                disabled={neteaseAuthLoading || !neteaseAuth?.configured}
+                className="px-4 py-2 rounded-xl text-xs font-black bg-red-500 text-white shadow-lg shadow-red-500/20 disabled:opacity-50"
+              >
+                {neteaseAuthLoading ? '加载中…' : neteaseShowQr ? '刷新二维码' : '扫码登录'}
+              </button>
+              {neteaseShowQr && (
+                <button
+                  type="button"
+                  onClick={onNeteaseCancelQr}
+                  className="px-4 py-2 rounded-xl text-xs font-black bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200"
+                >
+                  取消
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
+
+      {neteaseShowQr && !userLoggedIn && (
+        <div className="mb-8 p-5 rounded-2xl border border-red-400/30 bg-white/60 dark:bg-slate-900/60 flex flex-col sm:flex-row items-center gap-6">
+          <div className="relative shrink-0">
+            {neteaseQrImage ? (
+              <img
+                src={neteaseQrImage}
+                alt="网易云登录二维码"
+                className="w-[220px] h-[220px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white"
+              />
+            ) : (
+              <div className="w-[220px] h-[220px] rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse" />
+            )}
+            {neteaseQrCountdown > 0 && (
+              <span className="absolute bottom-2 right-2 text-[10px] font-black px-2 py-0.5 rounded-full bg-black/70 text-white">
+                {neteaseQrCountdown}s
+              </span>
+            )}
+          </div>
+          <div className="flex-1 text-center sm:text-left space-y-2">
+            <p className="text-sm font-black text-slate-800 dark:text-white">{neteaseQrStatus || '请扫码'}</p>
+            <p className="text-[10px] text-slate-500 leading-relaxed">
+              使用<strong>网易云音乐 App</strong>扫描左侧二维码并确认登录。二维码约 2 分钟有效；未登录时默认使用匿名 token 仍可搜索与添加歌曲。
+            </p>
+            <button
+              type="button"
+              onClick={onNeteaseRefreshQr}
+              disabled={neteaseAuthLoading}
+              className="text-[10px] font-black text-indigo-500 hover:underline disabled:opacity-50"
+            >
+              二维码过期？点击刷新
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
         <div className="space-y-3">
@@ -248,7 +309,7 @@ export default function MusicSection({
             onClick={() => onSaveCloudMusicIds()}
             className="w-full py-4 bg-indigo-500 text-white rounded-2xl text-sm font-black shadow-xl active:scale-95 transition-all"
           >
-            保存到数据库（前台立即生效）
+            保存到数据库（与前台音乐页同步）
           </button>
           <button
             type="button"

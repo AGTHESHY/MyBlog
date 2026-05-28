@@ -24,6 +24,12 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     success: true,
-    data: { url, redirectUri, doc: 'https://developer.music.163.com/st/developer/document?docId=1a5fb2c7b30b44609fa81129a8e1908d' },
+    data: {
+      url,
+      redirectUri,
+      doc: 'https://developer.music.163.com/st/developer/document?docId=1a5fb2c7b30b44609fa81129a8e1908d',
+      qrDoc: 'https://developer.music.163.com/st/developer/document?docId=2bb12a93e71a4be0842243b930c2f33c',
+      hint: '推荐使用 POST /api/music/netease/auth/qr 扫码登录；本接口为 H5 授权回退',
+    },
   });
 }

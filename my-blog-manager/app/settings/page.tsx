@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import type { NeteaseAuthStatus } from '../../lib/netease-open-api';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -66,6 +66,19 @@ function SettingsContent() {
   const [musicDetails, setMusicDetails] = useState<Record<string, any>>({});
   const [neteaseAuth, setNeteaseAuth] = useState<NeteaseAuthStatus | null>(null);
   const [neteaseAuthLoading, setNeteaseAuthLoading] = useState(false);
+  const [neteaseShowQr, setNeteaseShowQr] = useState(false);
+  const [neteaseQrImage, setNeteaseQrImage] = useState('');
+  const [neteaseQrStatus, setNeteaseQrStatus] = useState('');
+  const [neteaseQrCountdown, setNeteaseQrCountdown] = useState(0);
+  const neteasePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const neteaseSessionRef = useRef({ sessionId: '', unikey: '', expiresAt: 0 });
+
+  const stopNeteasePoll = useCallback(() => {
+    if (neteasePollRef.current) {
+      clearInterval(neteasePollRef.current);
+      neteasePollRef.current = null;
+    }
+  }, []);
 
   const fetchNeteaseAuthStatus = useCallback(async () => {
     try {
@@ -147,28 +160,44 @@ function SettingsContent() {
     }
   };
 
+  const persistCloudMusicIds = async (ids: string[]) => {
+    const cleaned = filterValidNeteaseSongIds(ids);
+    const res = await fetch('/api/config/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ updates: { cloudMusicIds: cleaned } }),
+    });
+    const data = await res.json();
+    return { ok: !!data.success, cleaned, message: data.message as string | undefined };
+  };
+
   const saveCloudMusicIds = async () => {
-    const cleaned = filterValidNeteaseSongIds(formData.cloudMusicIds || []);
-    if (cleaned.length !== (formData.cloudMusicIds?.length || 0)) {
-      handleUpdate('cloudMusicIds', cleaned);
+    const result = await persistCloudMusicIds(formData.cloudMusicIds || []);
+    if (result.cleaned.length !== (formData.cloudMusicIds?.length || 0)) {
+      handleUpdate('cloudMusicIds', result.cleaned);
       showToast('已自动移除无效的酷狗/非数字 ID', 'warning');
     }
-    try {
-      const res = await fetch('/api/config/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ updates: { cloudMusicIds: cleaned } }),
-      });
-      const data = await res.json();
-      if (!data.success) {
-        showToast(data.message || '写入数据库失败', 'error');
-        return;
-      }
-      showToast('播放列表已保存，请刷新博客音乐页', 'success');
-    } catch {
-      showToast('保存播放列表失败', 'error');
+    if (!result.ok) {
+      showToast(result.message || '写入数据库失败', 'error');
+      return;
     }
+    showToast('播放列表已保存，前台音乐页将自动同步', 'success');
   };
+
+  useEffect(() => {
+    const idSet = new Set((formData.cloudMusicIds || []).map(String));
+    setMusicDetails((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const key of Object.keys(next)) {
+        if (!idSet.has(key)) {
+          delete next[key];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [formData.cloudMusicIds]);
 
   useEffect(() => {
     const loadInitialMusicDetails = async () => {
@@ -219,21 +248,91 @@ function SettingsContent() {
     setSearchLoading(false);
   };
 
-  const startNeteaseLogin = async () => {
+  const startNeteaseQrLogin = useCallback(async () => {
+    stopNeteasePoll();
     setNeteaseAuthLoading(true);
+    setNeteaseShowQr(true);
+    setNeteaseQrImage('');
+    setNeteaseQrStatus('正在生成二维码…');
     try {
-      const res = await fetch('/api/music/netease/auth/login', { cache: 'no-store' });
+      const res = await fetch('/api/music/netease/auth/qr', { method: 'POST', cache: 'no-store' });
       const data = await res.json();
-      if (data.success && data.data?.url) {
-        window.location.href = data.data.url;
+      if (!data.success || !data.data?.unikey) {
+        showToast(data.message || '无法生成二维码', 'error');
+        setNeteaseShowQr(false);
         return;
       }
-      showToast(data.message || '无法打开登录页', 'error');
+
+      const { sessionId, unikey, qrImageUrl, expiresAt } = data.data;
+      neteaseSessionRef.current = { sessionId, unikey, expiresAt };
+      setNeteaseQrImage(qrImageUrl || '');
+      setNeteaseQrStatus('请使用网易云音乐 App 扫码');
+      setNeteaseQrCountdown(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)));
+
+      neteasePollRef.current = setInterval(async () => {
+        const { sessionId: sid, unikey: key, expiresAt: exp } = neteaseSessionRef.current;
+        if (!sid || !key) return;
+
+        if (exp && exp < Date.now()) {
+          stopNeteasePoll();
+          setNeteaseQrImage('');
+          setNeteaseQrCountdown(0);
+          setNeteaseQrStatus('二维码已过期（约 2 分钟），请点击「刷新二维码」');
+          return;
+        }
+        setNeteaseQrCountdown(Math.max(0, Math.ceil((exp - Date.now()) / 1000)));
+
+        try {
+          const pollRes = await fetch('/api/music/netease/auth/qr/check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId: sid, unikey: key }),
+            cache: 'no-store',
+          });
+          const poll = await pollRes.json();
+          if (!poll.success) {
+            stopNeteasePoll();
+            setNeteaseQrStatus(poll.message || '轮询失败');
+            return;
+          }
+          const st = poll.data?.status as string;
+          if (poll.data?.message) setNeteaseQrStatus(poll.data.message);
+          if (st === 'success') {
+            stopNeteasePoll();
+            setNeteaseShowQr(false);
+            setNeteaseQrImage('');
+            showToast('网易云扫码登录成功', 'success');
+            await fetchNeteaseAuthStatus();
+          } else if (st === 'expired') {
+            stopNeteasePoll();
+            setNeteaseQrImage('');
+            setNeteaseQrCountdown(0);
+          } else if (st === 'error') {
+            stopNeteasePoll();
+            showToast(poll.data?.message || '登录失败', 'error');
+          }
+        } catch {
+          // 单次轮询失败忽略，下次继续
+        }
+      }, 2000);
     } catch {
-      showToast('登录请求失败', 'error');
+      showToast('二维码请求失败', 'error');
+      setNeteaseShowQr(false);
+    } finally {
+      setNeteaseAuthLoading(false);
     }
-    setNeteaseAuthLoading(false);
-  };
+  }, [stopNeteasePoll, showToast, fetchNeteaseAuthStatus]);
+
+  const cancelNeteaseQr = useCallback(() => {
+    stopNeteasePoll();
+    setNeteaseShowQr(false);
+    setNeteaseQrImage('');
+    setNeteaseQrStatus('');
+    setNeteaseQrCountdown(0);
+    neteaseSessionRef.current = { sessionId: '', unikey: '', expiresAt: 0 };
+  }, [stopNeteasePoll]);
+
+  useEffect(() => () => stopNeteasePoll(), [stopNeteasePoll]);
 
   const logoutNetease = async () => {
     setNeteaseAuthLoading(true);
@@ -250,23 +349,41 @@ function SettingsContent() {
     setNeteaseAuthLoading(false);
   };
 
-  const addSongToPlaylist = (song: NeteaseSongMeta) => {
+  const addSongToPlaylist = async (song: NeteaseSongMeta) => {
     const targetId = String(song.id);
     const exists = formData.cloudMusicIds.some((id: string | number) => String(id) === targetId);
     if (exists) {
       showToast(`《${song.name}》已在列表中`, 'warning');
       return;
     }
-    handleUpdate('cloudMusicIds', [...formData.cloudMusicIds, targetId]);
+    const newList = [...formData.cloudMusicIds, targetId];
+    handleUpdate('cloudMusicIds', newList);
     setMusicDetails((prev) => ({ ...prev, [targetId]: song }));
-    showToast(`已添加《${song.name}》`, 'success');
+    const result = await persistCloudMusicIds(newList);
+    if (!result.ok) {
+      showToast(result.message || '添加成功但同步数据库失败', 'error');
+      return;
+    }
+    showToast(`已添加《${song.name}》并同步到音乐页`, 'success');
   };
 
-  const removeSong = (index: number) => {
+  const removeSong = async (index: number) => {
     const newList = [...formData.cloudMusicIds];
+    const removedId = String(newList[index] ?? '');
     newList.splice(index, 1);
     handleUpdate('cloudMusicIds', newList);
-    showToast("已移除一首歌曲", "success");
+    if (removedId) {
+      setMusicDetails((prev) => {
+        const next = { ...prev };
+        delete next[removedId];
+        return next;
+      });
+    }
+    const result = await persistCloudMusicIds(newList);
+    showToast(
+      result.ok ? '已移除并已同步到音乐页' : result.message || '已移除，但同步数据库失败',
+      result.ok ? 'success' : 'error'
+    );
   };
 
   const pushToQueue = (label: string, key?: string, value?: any) => {
@@ -342,7 +459,13 @@ function SettingsContent() {
                   cloudMusicIds={formData.cloudMusicIds || []}
                   neteaseAuth={neteaseAuth}
                   neteaseAuthLoading={neteaseAuthLoading}
-                  onNeteaseLogin={startNeteaseLogin}
+                  neteaseShowQr={neteaseShowQr}
+                  neteaseQrImage={neteaseQrImage}
+                  neteaseQrStatus={neteaseQrStatus}
+                  neteaseQrCountdown={neteaseQrCountdown}
+                  onNeteaseLogin={startNeteaseQrLogin}
+                  onNeteaseRefreshQr={startNeteaseQrLogin}
+                  onNeteaseCancelQr={cancelNeteaseQr}
                   onNeteaseLogout={logoutNetease}
                 />
               )}

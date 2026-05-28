@@ -2,6 +2,13 @@ import { getSiteSetting, updateSiteSettings } from './content-store';
 
 const SESSION_KEY = 'netease_user_session';
 const OAUTH_STATE_KEY = 'netease_oauth_state';
+const QR_PENDING_PREFIX = 'netease_qr_pending:';
+
+export type NeteaseQrPending = {
+  unikey: string;
+  createdAt: number;
+  expiresAt: number;
+};
 
 export type NeteaseUserSession = {
   accessToken: string;
@@ -49,6 +56,27 @@ export async function consumeOAuthState(incoming: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+export async function saveNeteaseQrPending(sessionId: string, unikey: string, expiresAt: number) {
+  const payload: NeteaseQrPending = { unikey, createdAt: Date.now(), expiresAt };
+  await updateSiteSettings({ [`${QR_PENDING_PREFIX}${sessionId}`]: payload });
+}
+
+export async function loadNeteaseQrPending(sessionId: string): Promise<NeteaseQrPending | null> {
+  const raw = await getSiteSetting(`${QR_PENDING_PREFIX}${sessionId}`);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as NeteaseQrPending;
+    if (!parsed?.unikey) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export async function clearNeteaseQrPending(sessionId: string) {
+  await updateSiteSettings({ [`${QR_PENDING_PREFIX}${sessionId}`]: null });
 }
 
 export function getNeteaseRedirectUri(request?: Request): string {
