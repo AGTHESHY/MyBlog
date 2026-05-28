@@ -1,4 +1,9 @@
-import type { NextConfig } from "next";
+import path from 'path';
+import { loadEnvConfig } from '@next/env';
+import type { NextConfig } from 'next';
+
+// 本地开发时合并仓库根目录 .env（与 docker compose 共用一份 NETEASE_* 配置）
+loadEnvConfig(path.resolve(__dirname, '..'));
 
 const nextConfig: NextConfig = {
   // 【核心开关】：告诉 Next.js 放弃 Node.js，打包成纯静态的 HTML/CSS/JS

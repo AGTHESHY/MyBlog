@@ -85,13 +85,16 @@ export default function MusicSection({
                   ? '匿名模式（应用 token）'
                   : neteaseAuth?.configured
                     ? '开放平台已配置'
-                    : '未配置开放平台'}
+                    : '未配置开放平台（扫码按钮已禁用）'}
             </p>
             <p className="text-[10px] text-slate-500 leading-relaxed mt-0.5">
               {userLoggedIn
                 ? '当前使用用户级 token，可获取更高码率与 VIP 曲目播放权限'
-                : neteaseAuth?.message ||
-                  '默认使用匿名 token；扫码登录后可播放更多 VIP 曲目'}
+                : !neteaseAuth?.configured
+                  ? neteaseAuth?.message ||
+                    '请在仓库根目录 .env 填写 NETEASE_APP_ID / NETEASE_APP_SECRET / NETEASE_PRIVATE_KEY，然后重启管理端'
+                  : neteaseAuth?.message ||
+                    '默认使用匿名 token；扫码登录后可播放更多 VIP 曲目'}
             </p>
             <a
               href="https://developer.music.163.com/st/developer/document?docId=2bb12a93e71a4be0842243b930c2f33c"

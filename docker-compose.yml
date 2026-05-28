@@ -43,6 +43,8 @@ services:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
     container_name: xhblogs-web
     restart: unless-stopped
+    env_file:
+      - .env
     ports:
       - "${XHBLOGS_PORT:-3000}:3000"
     environment:
@@ -52,11 +54,7 @@ services:
       MYSQL_USER: root
       MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-xhblogs}
-      NETEASE_APP_ID: ${NETEASE_APP_ID:-}
-      NETEASE_APP_SECRET: ${NETEASE_APP_SECRET:-}
-      NETEASE_PRIVATE_KEY: ${NETEASE_PRIVATE_KEY:-}
-      NETEASE_DEVICE_ID: ${NETEASE_DEVICE_ID:-}
-      NETEASE_REDIRECT_URI: ${NETEASE_REDIRECT_URI:-}
+      # 网易云凭证由 env_file: .env 注入（勿在此用 ${NETEASE_PRIVATE_KEY}，超长私钥会被展开成空并覆盖 env_file）
     depends_on:
       mysql:
         condition: service_healthy
@@ -69,6 +67,8 @@ services:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
     container_name: xhblogs-manager
     restart: unless-stopped
+    env_file:
+      - .env
     ports:
       - "${MANAGER_PORT:-3001}:3000"
     environment:
@@ -79,11 +79,6 @@ services:
       MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-xhblogs}
       CMS_API_PORT: ${CMS_API_PORT:-8000}
-      NETEASE_APP_ID: ${NETEASE_APP_ID:-}
-      NETEASE_APP_SECRET: ${NETEASE_APP_SECRET:-}
-      NETEASE_PRIVATE_KEY: ${NETEASE_PRIVATE_KEY:-}
-      NETEASE_DEVICE_ID: ${NETEASE_DEVICE_ID:-}
-      NETEASE_REDIRECT_URI: ${NETEASE_REDIRECT_URI:-}
       BLOG_MANAGER_PUBLIC_URL: ${BLOG_MANAGER_PUBLIC_URL:-}
     depends_on:
       mysql:

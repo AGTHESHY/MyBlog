@@ -43,6 +43,18 @@ export function isNeteaseOpenApiConfigured() {
   return !!getNeteaseOpenConfig();
 }
 
+/** 用于设置页提示缺少哪些环境变量 */
+export function getNeteaseOpenConfigHint(): string {
+  const missing: string[] = [];
+  if (!process.env.NETEASE_APP_ID?.trim()) missing.push('NETEASE_APP_ID');
+  if (!process.env.NETEASE_APP_SECRET?.trim()) missing.push('NETEASE_APP_SECRET');
+  if (!normalizePrivateKey(process.env.NETEASE_PRIVATE_KEY)) missing.push('NETEASE_PRIVATE_KEY');
+  if (missing.length === 0) {
+    return '已读取开放平台凭证，若仍无法登录请重建容器：docker compose up -d --build blog-manager';
+  }
+  return `未检测到环境变量：${missing.join('、')}。请在仓库根目录 .env 填写后重启管理端（本地 dev 需重启 npm run dev；Docker 需 rebuild）。`;
+}
+
 function normalizePrivateKey(raw?: string): string {
   if (!raw?.trim()) return '';
   let key = raw.trim().replace(/\\n/g, '\n');
@@ -377,7 +389,12 @@ export async function logoutNeteaseUser() {
 
 export async function getNeteaseAuthStatus(): Promise<NeteaseAuthStatus> {
   if (!isNeteaseOpenApiConfigured()) {
-    return { configured: false, loggedIn: false, tokenKind: 'none', message: '请配置 NETEASE_APP_ID 等环境变量' };
+    return {
+      configured: false,
+      loggedIn: false,
+      tokenKind: 'none',
+      message: getNeteaseOpenConfigHint(),
+    };
   }
 
   const user = await loadNeteaseUserSession();
