@@ -158,27 +158,39 @@ function SettingsContent() {
     }
   }, [formData.cloudMusicIds]);
 
-  const queryMusic = async () => {
-    if (!formData.newMusicId) {
-      showToast("ID不能为空哦", "warning");
+  const searchMusic = async () => {
+    const q = String(formData.musicSearchQuery || '').trim();
+    if (!q) {
+      showToast('请输入歌名或歌手', 'warning');
       return;
     }
-    const normalized = normalizeNeteaseSongId(formData.newMusicId);
-    if (!normalized) {
-      showToast(describeInvalidMusicId(formData.newMusicId), "error");
-      return;
+    setSearchLoading(true);
+    setSearchResults([]);
+    try {
+      const res = await fetch(`/api/music/search?q=${encodeURIComponent(q)}&limit=12`, { cache: 'no-store' });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data)) {
+        setSearchResults(data.data);
+        showToast(`找到 ${data.data.length} 首相关歌曲`, 'success');
+      } else {
+        showToast(data.message || '未找到相关歌曲', 'error');
+      }
+    } catch {
+      showToast('搜索请求失败', 'error');
     }
-    setQueryLoading(true);
-    setQueryResult(null);
+    setSearchLoading(false);
+  };
 
-    const info = await fetchMusicDetail(normalized);
-    if (info && !info.error) {
-      setQueryResult(info);
-      showToast("获取成功！", "success");
-    } else {
-      showToast(info?.name || "未找到该歌曲", "error");
+  const addSongToPlaylist = (song: NeteaseSongMeta) => {
+    const targetId = String(song.id);
+    const exists = formData.cloudMusicIds.some((id: string | number) => String(id) === targetId);
+    if (exists) {
+      showToast(`《${song.name}》已在列表中`, 'warning');
+      return;
     }
-    setQueryLoading(false);
+    handleUpdate('cloudMusicIds', [...formData.cloudMusicIds, targetId]);
+    setMusicDetails((prev) => ({ ...prev, [targetId]: song }));
+    showToast(`已添加《${song.name}》`, 'success');
   };
 
   const removeSong = (index: number) => {
@@ -186,22 +198,6 @@ function SettingsContent() {
     newList.splice(index, 1);
     handleUpdate('cloudMusicIds', newList);
     showToast("已移除一首歌曲", "success");
-  };
-
-  const confirmAddMusic = () => {
-    if (!queryResult) return;
-    const targetId = String(queryResult.id);
-    const exists = formData.cloudMusicIds.some((id: string | number) => String(id) === targetId);
-
-    if (exists) {
-      showToast(`⚠️ 《${queryResult.name}》已经在列表里啦，不要重复添加！`, "warning");
-    } else {
-      handleUpdate('cloudMusicIds', [...formData.cloudMusicIds, targetId]);
-      setMusicDetails(prev => ({ ...prev, [targetId]: queryResult }));
-      setQueryResult(null);
-      handleUpdate('newMusicId', '');
-      showToast("✅ 成功存入播放列表！", "success");
-    }
   };
 
   const pushToQueue = (label: string, key?: string, value?: any) => {
@@ -269,11 +265,12 @@ function SettingsContent() {
                   pushToQueue={pushToQueue}
                   onSaveCloudMusicIds={saveCloudMusicIds}
                   musicDetails={musicDetails}
-                  queryMusic={queryMusic}
-                  queryLoading={queryLoading}
-                  queryResult={queryResult}
-                  confirmAddMusic={confirmAddMusic}
+                  searchMusic={searchMusic}
+                  searchLoading={searchLoading}
+                  searchResults={searchResults}
+                  addSongToPlaylist={addSongToPlaylist}
                   removeSong={removeSong}
+                  cloudMusicIds={formData.cloudMusicIds || []}
                 />
               )}
               {activeTab === 'gallery' && <GallerySection key="gallery" formData={formData} handleUpdate={handleUpdate} pushToQueue={pushToQueue} />}
