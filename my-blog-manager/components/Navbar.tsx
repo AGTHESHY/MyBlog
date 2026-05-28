@@ -92,7 +92,12 @@ export default function Navbar() {
               break;
             case 'CONFIG':
               apiUrl = `${apiBase}/api/config/update`;
-              body = { updates: op.payload };
+              body = {
+                updates:
+                  op.key != null
+                    ? { [op.key]: op.value ?? (op.payload as Record<string, unknown>)?.[op.key] }
+                    : op.payload,
+              };
               break;
             case 'create_moment':
               apiUrl = `${apiBase}/api/moments/save`;

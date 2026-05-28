@@ -11,7 +11,7 @@ import Comments from '../../components/Comments';
 export default function MusicPage() {
   const {
     playlist, currentSong, isPlaying, progress, currentTime, duration, currentLyric,
-    isLoading, togglePlay, nextSong, prevSong, handleSeek,
+    isLoading, loadStatus, loadMessage, togglePlay, nextSong, prevSong, handleSeek,
     playSong, selectSong,
     playMode, togglePlayMode,
     volume, setVolume, isMuted, toggleMute
@@ -125,13 +125,27 @@ export default function MusicPage() {
     );
   }, [playlist, searchQuery]);
 
-  if (isLoading || !currentSong) {
+  if (isLoading) {
     return (
       <div className="min-h-screen relative pb-32 flex flex-col">
         <Navbar />
         <div className="flex-1 flex flex-col items-center justify-center animate-pulse gap-4">
           <Disc3 size={48} className="text-indigo-500 animate-spin" />
           <span className="font-black text-slate-500 tracking-widest text-sm">唤醒音频引擎中...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentSong) {
+    return (
+      <div className="min-h-screen relative pb-32 flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center max-w-lg mx-auto">
+          <Disc3 size={48} className="text-slate-400" />
+          <p className="font-black text-slate-600 dark:text-slate-300 text-sm leading-relaxed">
+            {loadMessage || '暂无可用曲目'}
+          </p>
         </div>
       </div>
     );

@@ -12,7 +12,7 @@ export default function MusicClient() {
   const {
     playlist, currentSong, isPlaying, progress, currentTime, duration, currentLyric,
     isLoading, togglePlay, nextSong, prevSong, handleSeek,
-    playSong, selectSong,
+    playSong, selectSong, loadStatus, loadMessage,
     playMode, togglePlayMode,
     volume, setVolume, isMuted, toggleMute
   } = useMusic();
@@ -115,13 +115,32 @@ export default function MusicClient() {
     );
   }, [playlist, searchQuery]);
 
-  if (isLoading || !currentSong) {
+  if (isLoading) {
     return (
       <div className="min-h-screen relative pb-32 flex flex-col">
         <Navbar />
-        <div className="flex-1 flex flex-col items-center justify-center animate-pulse gap-4">
+        <div className="flex-1 flex flex-col items-center justify-center animate-pulse gap-4 px-6 text-center">
           <Disc3 size={48} className="text-indigo-500 animate-spin" />
           <span className="font-black text-slate-500 tracking-widest text-sm">唤醒音频引擎中...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentSong) {
+    return (
+      <div className="min-h-screen relative pb-32 flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center max-w-lg mx-auto">
+          <Disc3 size={48} className="text-slate-400" />
+          <p className="font-black text-slate-600 dark:text-slate-300 text-sm leading-relaxed">
+            {loadMessage || (loadStatus === 'empty' ? '播放列表为空' : '暂无可用曲目')}
+          </p>
+          {loadStatus === 'empty' || loadStatus === 'failed' ? (
+            <p className="text-xs text-slate-500 leading-relaxed">
+              管理后台添加歌曲后，点击「暂存音乐修改」，再在右上角操作队列执行同步；然后刷新本页。
+            </p>
+          ) : null}
         </div>
       </div>
     );
