@@ -16,7 +16,7 @@ import 'katex/dist/katex.min.css';
 import Navbar from '../../components/Navbar';
 import PageTransition from '../../components/PageTransition';
 import { siteConfig } from '../../siteConfig';
-import { getChatters, getMoments, getPosts, getSiteSetting } from '../../lib/content-store';
+import { getSiteSetting } from '../../lib/content-store';
 
 // 🌟 引入刚刚写好的前端交互引擎
 import AboutClient from '../../components/AboutClient';
@@ -68,34 +68,6 @@ export default async function AdminAboutPage() {
   } catch (e) {
     console.error("读取 about_markdown 失败", e);
   }
-
-  // 🌟 3. 获取所有的活动动态
-  const posts = (await getPosts()).map((p) => ({
-    id: `posts-${p.slug}`,
-    type: '文章',
-    title: p.title || p.slug,
-    date: new Date(p.date || '1970-01-01').toISOString(),
-    url: `/posts/${p.slug}`
-  }));
-  const chatters = (await getChatters()).map((c) => ({
-    id: `chatters-${c.slug}`,
-    type: '杂谈',
-    title: c.title || c.slug,
-    date: new Date(c.date || '1970-01-01').toISOString(),
-    url: `/chatter/${c.slug}`
-  }));
-  const moments = (await getMoments()).map((m) => ({
-    id: `moments-${m.id}`,
-    type: '说说',
-    title: m.content?.slice(0, 20) || m.id,
-    date: new Date(m.date || '1970-01-01').toISOString(),
-    url: `/moments`
-  }));
-
-  // 将所有动态合并，并按时间倒序排列 (最新的在最上面)
-  const allActivities = [...posts, ...chatters, ...moments].sort((a, b) => {
-    return new Date(b.date).getTime() - new Date(a.date).getTime();
-  });
 
   return (
     <div className="min-h-screen relative pb-20">
@@ -233,11 +205,7 @@ export default async function AdminAboutPage() {
               正在连线源石数据库...
             </div>
           }>
-            <AboutClient
-              contentHtml={contentHtml}
-              coverImage={coverImage}
-              activities={allActivities}
-            />
+            <AboutClient contentHtml={contentHtml} coverImage={coverImage} />
           </Suspense>
 
         </main>

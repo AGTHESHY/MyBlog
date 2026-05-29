@@ -16,7 +16,7 @@ import Navbar from '../../components/Navbar';
 import PageTransition from '../../components/PageTransition';
 import AboutClient from '../../components/AboutClient';
 import { Suspense } from 'react';
-import { getChatters, getMoments, getPosts, getSiteSetting } from '../../lib/content-store';
+import { getSiteSetting } from '../../lib/content-store';
 
 export default async function AboutPage() {
   let content = (await getSiteSetting('about_markdown')) || '博主很懒，还没有写自我介绍哦...';
@@ -64,32 +64,6 @@ export default async function AboutPage() {
   } catch (e) {
     console.error("读取 about_markdown 失败", e);
   }
-
-  const posts = (await getPosts()).map((p) => ({
-    id: `posts-${p.slug}`,
-    type: '文章',
-    title: p.title || p.slug,
-    date: new Date(p.date || '1970-01-01').toISOString(),
-    url: `/posts/${p.slug}`
-  }));
-  const chatters = (await getChatters()).map((c) => ({
-    id: `chatters-${c.slug}`,
-    type: '杂谈',
-    title: c.title || c.slug,
-    date: new Date(c.date || '1970-01-01').toISOString(),
-    url: `/chatter/${c.slug}`
-  }));
-  const moments = (await getMoments()).map((m) => ({
-    id: `moments-${m.id}`,
-    type: '说说',
-    title: m.content?.slice(0, 20) || m.id,
-    date: new Date(m.date || '1970-01-01').toISOString(),
-    url: `/moments`
-  }));
-
-  const allActivities = [...posts, ...chatters, ...moments].sort((a, b) => {
-    return new Date(b.date).getTime() - new Date(a.date).getTime();
-  });
 
   return (
     <div className="min-h-screen relative pb-20">
@@ -210,11 +184,7 @@ export default async function AboutPage() {
 
           <Suspense fallback={<div className="h-96 flex items-center justify-center text-slate-500 font-bold animate-pulse">正在载入档案...</div>}>
             {/* 🌟 组件原封不动，安全可靠 */}
-            <AboutClient
-              contentHtml={contentHtml}
-              coverImage={coverImage}
-              activities={allActivities}
-            />
+            <AboutClient contentHtml={contentHtml} coverImage={coverImage} />
           </Suspense>
         </main>
       </PageTransition>

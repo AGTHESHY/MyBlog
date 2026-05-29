@@ -371,7 +371,6 @@ XHBlogs has detailed features waiting to be explored during actual use. This pro
 
 > Implemented LaTeX formula rendering. Usage example:
 > Input formula like $E=mc^2$. Underscores require an escape character "\_".
-> Thanks to @inWunsch for assisting with the LaTeX formula rendering update.
 
 #### 3. Comment System Bug Fix
 
