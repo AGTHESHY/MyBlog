@@ -1,5 +1,6 @@
 import { RowDataPacket } from 'mysql2/promise';
 import { query } from './db';
+import { fromMysqlDatetime, toMysqlDatetime } from './mysql-datetime';
 
 type PostRow = RowDataPacket & {
   slug: string;
@@ -62,19 +63,25 @@ type AlbumPhotoRow = RowDataPacket & {
   sort_order: number;
 };
 
-function parseJsonArray(raw: string | null): string[] {
+function parseJsonArray(raw: unknown): string[] {
   if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
+  if (Array.isArray(raw)) return raw.map(String);
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+      return [];
+    }
   }
+  return [];
 }
 
 function fmtDate(input: string | null): string {
   if (!input) return '1970-01-01';
-  return input.replace('T', ' ').slice(0, 19);
+  const s = String(input).trim();
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s)) return s.slice(0, 10);
+  return s.replace('T', ' ').slice(0, 10);
 }
 
 export async function listPostSlugs(): Promise<string[]> {
@@ -178,7 +185,7 @@ export async function getMoments() {
     content: r.content || '',
     location: r.location || '',
     images: parseJsonArray(r.images_json),
-    date: r.published_at || new Date(0).toISOString(),
+    date: fromMysqlDatetime(r.published_at),
   }));
 }
 
@@ -254,7 +261,7 @@ export async function saveMoments(moment: {
       content: moment.content,
       location: moment.location || '',
       images_json: JSON.stringify(moment.images || []),
-      published_at: moment.date,
+      published_at: toMysqlDatetime(moment.date),
     }
   );
 }

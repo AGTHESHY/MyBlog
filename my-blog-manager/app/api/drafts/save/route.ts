@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../../lib/db';
 import { RowDataPacket } from 'mysql2/promise';
+import { toMysqlDatetime } from '../../../../lib/mysql-datetime';
 
 function makeSlug(title: string) {
   return title
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
         cover: body.cover || '',
         tags_json: JSON.stringify(Array.isArray(body.tags) ? body.tags : []),
         body_markdown: body.content || '',
-        published_at: body.date || new Date().toISOString(),
+        published_at: toMysqlDatetime(body.date),
         status,
       }
     );
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest) {
       cover: body.cover || '',
       tags_json: JSON.stringify(Array.isArray(body.tags) ? body.tags : []),
       body_markdown: body.content || '',
-      published_at: body.date || new Date().toISOString(),
+      published_at: toMysqlDatetime(body.date),
       status,
     }
   );

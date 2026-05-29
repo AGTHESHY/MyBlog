@@ -2,6 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../../lib/db';
 import { RowDataPacket } from 'mysql2/promise';
 
+function parseTagsJson(raw: unknown): string[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.map(String);
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const type = body.type as string;
@@ -22,7 +36,7 @@ export async function POST(req: NextRequest) {
         title: r.title || '',
         description: r.description || '',
         cover: r.cover || '',
-        tags: r.tags_json ? JSON.parse(r.tags_json) : [],
+        tags: parseTagsJson(r.tags_json),
         content: r.body_markdown || '',
         date: r.published_at || '',
       },
@@ -45,7 +59,7 @@ export async function POST(req: NextRequest) {
         description: '',
         mood: r.mood || '',
         cover: r.cover || '',
-        tags: r.tags_json ? JSON.parse(r.tags_json) : [],
+        tags: parseTagsJson(r.tags_json),
         content: r.body_markdown || '',
         date: r.published_at || '',
       },

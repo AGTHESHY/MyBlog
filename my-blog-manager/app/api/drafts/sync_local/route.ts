@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../../lib/db';
 import { RowDataPacket } from 'mysql2/promise';
+import { toMysqlDatetime } from '../../../../lib/mysql-datetime';
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
           cover: payload.cover || '',
           tags_json: JSON.stringify(Array.isArray(payload.tags) ? payload.tags : []),
           body_markdown: payload.content || '',
-          published_at: payload.date || new Date().toISOString(),
+          published_at: toMysqlDatetime(payload.date),
           status,
         }
       );
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
           cover: payload.cover || '',
           tags_json: JSON.stringify(Array.isArray(payload.tags) ? payload.tags : []),
           body_markdown: payload.content || '',
-          published_at: payload.date || new Date().toISOString(),
+          published_at: toMysqlDatetime(payload.date),
           status,
         }
       );
