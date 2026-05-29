@@ -16,9 +16,13 @@ import Navbar from '../../components/Navbar';
 import PageTransition from '../../components/PageTransition';
 import AboutClient from '../../components/AboutClient';
 import { Suspense } from 'react';
-import { getSiteSetting } from '../../lib/content-store';
+import { getSiteSetting, getSiteSettingUpdatedAt } from '../../lib/content-store';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default async function AboutPage() {
+  const contentVersion = (await getSiteSettingUpdatedAt('about_markdown')) ?? 'initial';
   let content = (await getSiteSetting('about_markdown')) || '博主很懒，还没有写自我介绍哦...';
   let contentHtml = '博主很懒，还没有写自我介绍哦...';
   let coverImage = (await getSiteSetting('about_cover')) || "https://bu.dusays.com/2026/03/24/69c23dc278c78.jpg";
@@ -184,7 +188,7 @@ export default async function AboutPage() {
 
           <Suspense fallback={<div className="h-96 flex items-center justify-center text-slate-500 font-bold animate-pulse">正在载入档案...</div>}>
             {/* 🌟 组件原封不动，安全可靠 */}
-            <AboutClient contentHtml={contentHtml} coverImage={coverImage} />
+            <AboutClient key={contentVersion} contentHtml={contentHtml} coverImage={coverImage} />
           </Suspense>
         </main>
       </PageTransition>

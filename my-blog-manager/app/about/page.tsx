@@ -16,12 +16,16 @@ import 'katex/dist/katex.min.css';
 import Navbar from '../../components/Navbar';
 import PageTransition from '../../components/PageTransition';
 import { siteConfig } from '../../siteConfig';
-import { getSiteSetting } from '../../lib/content-store';
+import { getSiteSetting, getSiteSettingUpdatedAt } from '../../lib/content-store';
 
 // 🌟 引入刚刚写好的前端交互引擎
 import AboutClient from '../../components/AboutClient';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function AdminAboutPage() {
+  const contentVersion = (await getSiteSettingUpdatedAt('about_markdown')) ?? 'initial';
   let content = (await getSiteSetting('about_markdown')) || '博主很懒，还没有写自我介绍哦...';
   let contentHtml = "博主很懒，还没有写自我介绍哦...";
   let coverImage = (await getSiteSetting('about_cover')) || "https://bu.dusays.com/2026/03/24/69c23dc278c78.jpg";
@@ -205,7 +209,7 @@ export default async function AdminAboutPage() {
               正在连线源石数据库...
             </div>
           }>
-            <AboutClient contentHtml={contentHtml} coverImage={coverImage} />
+            <AboutClient key={contentVersion} contentHtml={contentHtml} coverImage={coverImage} />
           </Suspense>
 
         </main>

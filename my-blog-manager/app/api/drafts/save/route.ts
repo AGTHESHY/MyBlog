@@ -1,3 +1,4 @@
+import { revalidatePath } from 'next/cache';
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../../lib/db';
 import { RowDataPacket } from 'mysql2/promise';
@@ -31,6 +32,7 @@ export async function POST(req: NextRequest) {
         { value: body.cover || '' }
       );
     }
+    revalidatePath('/about');
     return NextResponse.json({ success: true, id: 'about' });
   }
 

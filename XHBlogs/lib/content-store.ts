@@ -1,3 +1,4 @@
+import { unstable_noStore as noStore } from 'next/cache';
 import { RowDataPacket } from 'mysql2/promise';
 import { query } from './db';
 
@@ -251,11 +252,23 @@ export async function getAlbums() {
 }
 
 export async function getSiteSetting(key: string): Promise<string | null> {
+  noStore();
   const rows = await query<RowDataPacket[]>(
     'SELECT value_text FROM site_settings WHERE setting_key = :key LIMIT 1',
     { key }
   );
   return rows[0]?.value_text ?? null;
+}
+
+/** 用于关于页等需要随保存立即刷新的场景 */
+export async function getSiteSettingUpdatedAt(key: string): Promise<string | null> {
+  noStore();
+  const rows = await query<RowDataPacket[]>(
+    'SELECT updated_at FROM site_settings WHERE setting_key = :key LIMIT 1',
+    { key }
+  );
+  const raw = rows[0]?.updated_at;
+  return raw != null ? String(raw) : null;
 }
 
 export async function updateSiteSettings(updates: Record<string, unknown>) {
