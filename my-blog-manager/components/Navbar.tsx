@@ -6,7 +6,6 @@ import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOperations } from '../context/OperationContext';
 import { useToast } from './ToastProvider';
-import { AlertTriangle } from 'lucide-react';
 import { siteConfig } from '../siteConfig';
 
 export default function Navbar() {
@@ -14,25 +13,9 @@ export default function Navbar() {
   const [lastScrollY, setLastScrollY] = useState(0);
   const [isOpBoxOpen, setIsOpBoxOpen] = useState(false);
 
-  const [syncModalOpen, setSyncModalOpen] = useState(false);
-  const [targetBlogPath, setTargetBlogPath] = useState("");
-
   const pathname = usePathname();
   const { operations, removeOperation, clearOperations } = useOperations();
   const { showToast } = useToast();
-
-  useEffect(() => {
-    const fetchPath = async () => {
-      try {
-        const path = localStorage.getItem('targetBlogPath') || "D:/program/XinghuisamaBlogs/XHBlogs";
-        setTargetBlogPath(path);
-      } catch (e) {
-        const path = localStorage.getItem('targetBlogPath') || "F:/Projects/my-blog";
-        setTargetBlogPath(path);
-      }
-    };
-    fetchPath();
-  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -124,7 +107,7 @@ export default function Navbar() {
           }
         }
 
-        showToast("✅ 任务已全部执行，本地数据已写入！", "success");
+        showToast("✅ 任务已全部执行，数据已写入 MySQL！", "success");
         clearOperations();
         setIsOpBoxOpen(false);
 
@@ -136,38 +119,6 @@ export default function Navbar() {
         showToast(`后端连接异常: ${error.message}`, "error");
       }
     };
-
-  const handleSyncBlogClick = () => {
-    if (!targetBlogPath) {
-       const fallback = localStorage.getItem('targetBlogPath') || "F:/Projects/my-blog";
-       setTargetBlogPath(fallback);
-    }
-    setIsOpBoxOpen(false);
-    setSyncModalOpen(true);
-  };
-
-  const executeSyncBlog = async () => {
-    setSyncModalOpen(false);
-
-    try {
-      showToast("🚀 正在镜像数据至目标项目，请稍候...", "info");
-
-      const res = await fetch(`/api/sync/execute`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ blogPath: targetBlogPath })
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        showToast(data.message, "success");
-      } else {
-        showToast(`❌ 同步失败: ${data.message}`, "error");
-      }
-    } catch (error) {
-      showToast("无法连接到 Python 桌面核心引擎进行同步", "error");
-    }
-  };
 
   return (
     <>
@@ -228,14 +179,9 @@ export default function Navbar() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
-                      <button onClick={handleSyncBlogClick} className="py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-black hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
-                        🔄 同步 Blog
+                    <button onClick={handleUpdateLocal} className="w-full py-2.5 rounded-xl bg-indigo-500 text-white text-xs font-black shadow-lg shadow-indigo-500/30 hover:bg-indigo-600 transition-colors">
+                        🚀 写入数据库
                       </button>
-                      <button onClick={handleUpdateLocal} className="py-2.5 rounded-xl bg-indigo-500 text-white text-xs font-black shadow-lg shadow-indigo-500/30 hover:bg-indigo-600 transition-colors">
-                        🚀 更新本地
-                      </button>
-                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -244,29 +190,6 @@ export default function Navbar() {
           </div>
         </div>
       </header>
-
-      <AnimatePresence>
-        {syncModalOpen && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSyncModalOpen(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" />
-            <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative w-full max-w-sm bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-[40px] shadow-2xl border border-white/50 p-10 text-center">
-              <div className="w-16 h-16 bg-amber-500/10 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                <AlertTriangle className="text-amber-500" size={32} />
-              </div>
-              <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">系统镜像覆盖</h3>
-              <p className="text-sm text-slate-500 mb-8 leading-relaxed text-balance">
-                确认将管理端数据覆盖至<br />
-                <span className="font-bold text-amber-500 break-all">{targetBlogPath}</span> 吗？<br />
-                <span className="text-xs opacity-80 text-red-400 font-bold mt-2 block">此操作将清空目标项目的旧文章与配置！</span>
-              </p>
-              <div className="flex gap-3">
-                <button onClick={() => setSyncModalOpen(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl text-xs font-black uppercase transition-colors hover:bg-slate-200 dark:hover:bg-slate-700">取消</button>
-                <button onClick={executeSyncBlog} className="flex-1 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl text-xs font-black uppercase shadow-lg shadow-amber-500/30 transition-all">确认覆盖</button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </>
   );
 }

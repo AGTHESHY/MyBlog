@@ -62,7 +62,7 @@ export default async function AboutPage() {
 
     contentHtml = processedContent.toString();
   } catch (e) {
-    console.error("读取 about.md 失败", e);
+    console.error("读取 about_markdown 失败", e);
   }
 
   const posts = (await getPosts()).map((p) => ({

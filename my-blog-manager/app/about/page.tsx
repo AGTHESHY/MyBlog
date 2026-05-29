@@ -66,7 +66,7 @@ export default async function AdminAboutPage() {
 
     contentHtml = processedContent.toString();
   } catch (e) {
-    console.error("读取 about.md 失败", e);
+    console.error("读取 about_markdown 失败", e);
   }
 
   // 🌟 3. 获取所有的活动动态

@@ -57,15 +57,7 @@ DATABASE_URL=mysql://root:你的密码@127.0.0.1:3306/xhblogs
 
 也可拆分：`MYSQL_HOST`、`MYSQL_PORT`、`MYSQL_USER`、`MYSQL_PASSWORD`、`MYSQL_DATABASE`。
 
-### 3. 可选：导入历史 Markdown
-
-若曾使用本地 `XHBlogs/posts/`、`chatters/`、`moments/` 等目录，可一次性导入：
-
-```powershell
-docker compose --profile tools run --rm migrator
-```
-
-### 4. 部署前台到 Vercel（可选）
+### 3. 部署前台到 Vercel（可选）
 
 > 线上环境需配置可访问的 **MySQL**（如云数据库），在 Vercel 环境变量中设置 `DATABASE_URL`。仅推送静态文件、不连数据库的方式已不再适用。
 
@@ -327,28 +319,64 @@ Vercel 默认会为你分配一个免费的二级域名：
 |------|------|------|
 | id | BIGINT UNSIGNED | 设置自增主键 |
 | setting_key | VARCHAR(191) | 设置键名（唯一） |
-| value_text | LONGTEXT | 设置值，多为 JSON 字符串或 Markdown 文本 |
+| value_text | LONGTEXT | 设置值：纯文本原样存储，对象/数组以 JSON 字符串存储 |
 | updated_at | DATETIME | 更新时间 |
 
-常用键名示例：
+`setting_key` 与 `siteConfig.ts` 字段对应，运行时优先读数据库，无记录时回退 `siteConfig.ts` 默认值。读取时 `/api/config/get` 会对 `value_text` 尝试 `JSON.parse`。
 
-| setting_key | 说明 |
-|-------------|------|
-| about_markdown | 关于页 Markdown 正文 |
-| about_cover | 关于页封面图 URL |
-| （其它） | 与控制台「设置」页面对应的配置项，由程序写入 |
+| setting_key | 值类型 | 说明 |
+|-------------|--------|------|
+| about_markdown | 纯文本 | 关于页 Markdown 正文 |
+| about_cover | 字符串 | 关于页封面图 URL |
+| title | 字符串 | 站点完整标题 |
+| navTitle, navSuffix, navAfter | 字符串 | 导航栏标题分段显示 |
+| faviconUrl | 字符串 | 站点图标 URL |
+| authorName, bio, avatarUrl | 字符串 | 博主名称、简介、头像 |
+| bgImages | JSON 数组 | 背景图 URL 列表 |
+| useGradient | 布尔 | 是否使用渐变背景 |
+| themeColors | JSON 数组 | 渐变配色 |
+| defaultPostCover | 字符串 | 文章无封面时的默认图 |
+| photoWallImage | 字符串 | 首页照片墙预览图 |
+| cloudMusicIds | JSON 数组 | 网易云歌曲 ID 列表 |
+| social | JSON 对象 | GitHub、邮箱等社交链接 |
+| gitalkConfig | JSON 对象 | Gitalk 评论配置（含 clientID 等） |
+| geminiConfig | JSON 对象 | AI 小猫对话配置 |
+| icpConfig | JSON 对象 | 备案号名称与链接 |
+| danmakuList | JSON 数组 | 全局背景弹幕文案 |
+| footerBadges | JSON 数组 | 页脚技术栈徽章 |
+| footerConfig | JSON 对象 | 页脚聚合配置（buildDate、icp 等） |
+| buildDate | 字符串 | 建站日期 ISO 字符串 |
+| chatterTitle, chatterDescription | 字符串 | 杂谈区标题与描述 |
+| picBedName, picBedUrl, picBedToken | 字符串 | 图床名称、API、Token（敏感） |
+| enableLevelSystem | 布尔 | 是否启用灵境等级系统 |
+| friendLinkApplyFormat | 字符串 | 友链申请模板文案 |
 
 ---
 
 ## 三、内容与配置管理
 
-文章、杂谈、说说、友链、项目、相册等数据均在**管理后台**写入 MySQL，**前台即时读取同一数据库**，无需再配置 `XHBlogs` 物理路径，也无需「同步 Blog」到本地文件夹。
+文章、杂谈、说说、友链、项目、相册等数据均在**管理后台**写入 MySQL，**前台即时读取同一数据库**，无需配置本地 Markdown 目录或文件镜像同步。
 
 1. 打开 http://localhost:3001 进入管理后台  
-2. 在编辑器 / 各管理页面保存内容  
+2. 在编辑器 / 各管理页面保存内容（或通过操作队列「写入数据库」批量提交）  
 3. 刷新 http://localhost:3000 即可看到更新  
 
-站点外观、关于页等配置通过设置页写入 `site_settings` 表。草稿与发布状态由对应表的 `status` 字段控制。
+草稿与发布状态由 `posts` / `chatters` / `moments` 表的 `status` 字段控制（`draft` / `published`）。
+
+### CRUD API 映射（管理后台 → MySQL）
+
+| 业务 | 读取 | 写入 / 删除 |
+|------|------|-------------|
+| 文章 | `content-store.getPosts` / `getPostBySlug` | `POST /api/drafts/save`、`POST /api/drafts/sync_local`（操作队列）、`POST /api/drafts/delete` |
+| 杂谈 | `getChatters` / `getChatterBySlug` | 同上（`type: chatter`） |
+| 说说 | `getMoments` | `POST /api/moments/save`、`POST /api/moments/delete` |
+| 友链 | `getFriends` | `POST /api/friends/sync`（全量替换 `friends` 表） |
+| 项目 | `getProjects` | `POST /api/projects/sync`（全量替换） |
+| 相册 | `getAlbums` | `POST /api/gallery/sync`（全量替换 `albums` + `album_photos`） |
+| 站点配置 | `GET /api/config/get` | `POST /api/config/update` |
+| 关于页 | `getSiteSetting('about_markdown')` | `POST /api/drafts/save`（`type: about` 时写 `site_settings`） |
+
+> `sync_local` 名称沿用历史路由，实际写入 MySQL，不写本地文件。
 
 ---
 

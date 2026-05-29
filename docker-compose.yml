@@ -91,18 +91,5 @@ services:
       cms-api:
         condition: service_started
 
-  migrator:
-    profiles: ["tools"]
-    image: node:20-alpine
-    working_dir: /work/XHBlogs
-    volumes:
-      - ./:/work
-    environment:
-      DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD:-root}@mysql:3306/${MYSQL_DATABASE:-xhblogs}
-    depends_on:
-      mysql:
-        condition: service_healthy
-    command: sh -c "npm install && node ../scripts/migrations/migrate_to_mysql.mjs"
-
 volumes:
   mysql_data:

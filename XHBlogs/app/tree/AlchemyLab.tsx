@@ -10,10 +10,6 @@ import { useRouter } from 'next/navigation';
 import LabComments from '../../components/LabComments';
 import { siteConfig } from '../../siteConfig';
 
-// 🌟 引入相册与友链数据以统计徽章 (请确保路径正确，如果报错请调整 ../ 的数量)
-import { albums } from '../../data/albums';
-import { friendsData } from '../../data/friends';
-
 function seededRandom(seed: number) {
   const x = Math.sin(seed) * 10000;
   return x - Math.floor(x);
@@ -179,7 +175,7 @@ const StickyNote = ({ note }: { note: any }) => {
 // ==========================================
 // 🌟 4. 核心实验室组件 (完全体)
 // ==========================================
-export default function AlchemyLab({ posts = [], chatters = [], moments = [] }: any) {
+export default function AlchemyLab({ posts = [], chatters = [], moments = [], albums = [], friends = [] }: any) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -196,7 +192,7 @@ export default function AlchemyLab({ posts = [], chatters = [], moments = [] }: 
 
     // 统计照片与友链 (纯发徽章，不加经验)
     const totalPhotos = (albums || []).reduce((acc: number, curr: any) => acc + (curr.photos?.length || 0), 0);
-    const totalFriends = (friendsData || []).length;
+    const totalFriends = (friends || []).length;
 
     const parseDateStr = (dateVal: any) => {
       try {

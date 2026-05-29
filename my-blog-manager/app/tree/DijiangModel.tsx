@@ -12,9 +12,6 @@ import { Float, Html } from '@react-three/drei';
 import LabComments from '../../components/LabComments';
 import { siteConfig } from '../../siteConfig';
 
-import { albums } from '../../data/albums';
-import { friendsData } from '../../data/friends';
-
 function seededRandom(seed: number) {
   const x = Math.sin(seed) * 10000;
   return x - Math.floor(x);
@@ -324,7 +321,7 @@ const HologramShip = ({ activeCategory, currentRecords, router }: any) => {
 // ==========================================
 // 🌟 6. 核心页面渲染
 // ==========================================
-export default function DijiangModel({ posts = [], chatters = [], moments = [] }: any) {
+export default function DijiangModel({ posts = [], chatters = [], moments = [], albums = [], friends = [] }: any) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [sysTip, setSysTip] = useState<string | null>(null);
@@ -339,7 +336,7 @@ export default function DijiangModel({ posts = [], chatters = [], moments = [] }
     if (siteConfig?.enableLevelSystem !== true) return null;
 
     const totalPhotos = (albums || []).reduce((acc: number, curr: any) => acc + (curr.photos?.length || 0), 0);
-    const totalFriends = (friendsData || []).length;
+    const totalFriends = (friends || []).length;
 
     const parseDateStr = (dateVal: any) => {
       try {

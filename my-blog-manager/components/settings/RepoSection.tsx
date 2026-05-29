@@ -8,7 +8,6 @@ import { ShieldCheck, GitBranch, Save, Rocket, Wand2, Key, Copy, ExternalLink, C
 
 export default function RepoSection() {
   const { showToast } = useToast();
-  const [isCheckingPath, setIsCheckingPath] = useState(false);
   const [isCheckingGit, setIsCheckingGit] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
@@ -50,30 +49,11 @@ export default function RepoSection() {
             sourceRepoUrl: data.sourceRepoUrl || "",
             sourceBranch: data.sourceBranch || "main"
           });
-          if (data.blogPath) localStorage.setItem('targetBlogPath', data.blogPath);
         }
       } catch (e) { console.error("加载配置失败"); }
     };
     fetchConfig();
   }, []);
-
-  const testPathConnection = async () => {
-    if (!deployData.blogPath) { showToast("路径不能为空！", "warning"); return; }
-    setIsCheckingPath(true);
-    try {
-      const configRes = await fetch(`/backend_config.json?t=${Date.now()}`);
-      const config = await configRes.json();
-      const res = await fetch(`http://127.0.0.1:${config.api_port}/api/sync/check`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ blogPath: deployData.blogPath })
-      });
-      const data = await res.json();
-      if (data.success) showToast(data.message, "success");
-      else showToast(data.message, "error");
-    } catch (e) { showToast("无法连接引擎", "error"); }
-    setIsCheckingPath(false);
-  };
 
   const testGitConnection = async () => {
     if (!deployData.blogPath) { showToast("请先配置物理路径！", "warning"); return; }
@@ -199,12 +179,7 @@ export default function RepoSection() {
 
         <div className="space-y-8">
           <div className="bg-slate-50 dark:bg-slate-800/30 p-5 rounded-3xl border border-slate-100 dark:border-slate-700/50">
-            <div className="flex justify-between items-center mb-3">
-               <label className="text-[11px] font-black text-slate-600 dark:text-slate-300 uppercase flex items-center gap-1"><ShieldCheck size={14} className="text-indigo-500" /> 1. 本地 Blog 物理路径</label>
-               <button onClick={testPathConnection} disabled={isCheckingPath} className="text-[10px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-3 py-1 rounded-full font-bold hover:bg-indigo-500/20 transition-colors">
-                 {isCheckingPath ? "探测中..." : "测试路径 ⚡"}
-               </button>
-            </div>
+            <label className="text-[11px] font-black text-slate-600 dark:text-slate-300 uppercase flex items-center gap-1 mb-3"><ShieldCheck size={14} className="text-indigo-500" /> 1. 本地 Blog 物理路径（Git 部署用）</label>
             <input type="text" value={deployData.blogPath} onChange={e => setDeployData({...deployData, blogPath: e.target.value})} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-mono outline-none focus:ring-2 focus:ring-indigo-500" placeholder="F:/Projects/my-blog" />
           </div>
 

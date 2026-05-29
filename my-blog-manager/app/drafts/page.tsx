@@ -21,16 +21,10 @@ function DraftsContent() {
     title: null
   });
 
-  const blogPath = "F:/Projects/my-blog";
-
   const fetchDrafts = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/drafts/list`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ blog_path: blogPath })
-      });
+      const res = await fetch(`/api/drafts/list`, { method: 'POST' });
 
       const data = await res.json();
       if (res.ok && data.success && Array.isArray(data.drafts)) {
@@ -58,7 +52,7 @@ function DraftsContent() {
       const res = await fetch(`/api/drafts/delete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ blog_path: blogPath, id: id })
+        body: JSON.stringify({ id })
       });
 
       const data = await res.json();

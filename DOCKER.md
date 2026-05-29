@@ -9,7 +9,7 @@
 | mysql | xhblogs-mysql | 3306 | 数据库，首次启动自动执行 `init_mysql.sql` |
 | xhblogs | xhblogs-web | 3000 | 博客前台 |
 | blog-manager | xhblogs-manager | 3001 | 管理后台 |
-| cms-api | xhblogs-cms-api | 8000 | 图床上传、部署、音乐等 Python API |
+| cms-api | xhblogs-cms-api | 8000 | 图床上传、Git 部署等 Python API |
 
 ## 快速开始
 
@@ -42,12 +42,6 @@ docker compose up -d --build
 - 前台：http://localhost:3000
 - 后台：http://localhost:3001
 - API 健康检查：http://localhost:8000/api/status
-
-### 5.（可选）导入本地 Markdown 数据
-
-```powershell
-docker compose --profile tools run --rm migrator
-```
 
 ## 常用命令
 
