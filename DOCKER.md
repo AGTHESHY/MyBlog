@@ -20,6 +20,18 @@
 
 若本机已有名为 `mysql` 的旧容器且占用 **3306**，请先停止，或在 `.env` 里改 `MYSQL_PORT=3307`。
 
+**连接数据库时**：`.env` 里若写了 `MYSQL_PORT=3307`，本机应使用 **3307**（不是 3306）。例如：
+
+```bash
+docker exec -it xhblogs-mysql mysql -uroot -proot xhblogs -e "SHOW TABLES;"
+```
+
+表结构在 MySQL 容器**首次启动且数据卷为空**时由 `scripts/migrations/init_mysql.sql` 自动创建；`docker compose build` 不会建表。若卷已存在但表缺失，可手动执行：
+
+```bash
+docker exec -i xhblogs-mysql mysql -uroot -proot --default-character-set=utf8mb4 < scripts/migrations/init_mysql.sql
+```
+
 ### 2. 配置
 
 ```powershell

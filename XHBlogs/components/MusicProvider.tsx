@@ -3,6 +3,12 @@
 import { createContext, useContext, useState, useRef, useEffect, useCallback, ReactNode } from 'react';
 import { siteConfig } from '../siteConfig';
 import { filterValidNeteaseSongIds, isLyricUrl, mapPlayableToPlaylistItem } from '../lib/netease-music-shared';
+import {
+  findPlaylistIndexBySongId,
+  loadMusicPlayerPrefs,
+  saveMusicPlayerPrefs,
+  type MusicPlayMode,
+} from '../lib/music-player-prefs';
 
 type LoadStatus = 'loading' | 'ready' | 'empty' | 'failed';
 
@@ -29,8 +35,6 @@ function parseLrc(lrcText: string) {
   return result.sort((a, b) => a.time - b.time);
 }
 
-type PlayMode = 'loop' | 'single' | 'random';
-
 interface MusicContextType {
   playlist: any[];
   currentIndex: number;
@@ -45,7 +49,7 @@ interface MusicContextType {
   loadMessage: string;
   volume: number;
   isMuted: boolean;
-  playMode: PlayMode;
+  playMode: MusicPlayMode;
   togglePlay: () => void;
   nextSong: () => void;
   prevSong: () => void;
@@ -73,7 +77,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const [loadMessage, setLoadMessage] = useState('');
   const [volume, setVolumeState] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
-  const [playMode, setPlayMode] = useState<PlayMode>('loop');
+  const [playMode, setPlayMode] = useState<MusicPlayMode>('loop');
+  const prefsHydratedRef = useRef(false);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const sourceIdsRef = useRef('');
@@ -129,8 +134,10 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       const mergedPlaylist = results.filter((s): s is NonNullable<typeof s> => !!s && !!s.src);
 
       if (mergedPlaylist.length > 0) {
+        const prefs = loadMusicPlayerPrefs();
+        const savedIdx = findPlaylistIndexBySongId(mergedPlaylist, prefs.currentSongId);
         setPlaylist(mergedPlaylist);
-        setCurrentIndex((idx) => Math.min(idx, mergedPlaylist.length - 1));
+        setCurrentIndex(savedIdx >= 0 ? savedIdx : 0);
         setLoadStatus('ready');
         setLoadMessage('');
       } else {
@@ -175,6 +182,26 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [syncPlaylistFromServer]);
+
+  useEffect(() => {
+    const prefs = loadMusicPlayerPrefs();
+    setPlayMode(prefs.playMode);
+    setVolumeState(prefs.volume);
+    setIsMuted(prefs.isMuted);
+    prefsHydratedRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!prefsHydratedRef.current) return;
+    saveMusicPlayerPrefs({ playMode, volume, isMuted });
+  }, [playMode, volume, isMuted]);
+
+  useEffect(() => {
+    const songId = playlist[currentIndex]?.id;
+    if (songId != null) {
+      saveMusicPlayerPrefs({ currentSongId: String(songId) });
+    }
+  }, [currentIndex, playlist]);
 
   useEffect(() => {
     if (playlist.length === 0) return;
@@ -314,9 +341,10 @@ export function MusicProvider({ children }: { children: ReactNode }) {
 
   const togglePlayMode = () => {
     setPlayMode((prev) => {
-      if (prev === 'loop') return 'single';
-      if (prev === 'single') return 'random';
-      return 'loop';
+      const next: MusicPlayMode =
+        prev === 'loop' ? 'single' : prev === 'single' ? 'random' : 'loop';
+      saveMusicPlayerPrefs({ playMode: next });
+      return next;
     });
   };
 
