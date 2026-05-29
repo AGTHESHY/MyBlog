@@ -6,7 +6,9 @@
 /* 2. 基础环境与性能优化 */
 @layer base {
   :root {
-    --font-serif: var(--font-serif), "Source Han Serif SC", "Noto Serif SC", "Songti SC", "SimSun", serif;
+    --font-geist-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-geist-mono: ui-monospace, "SF Mono", "Cascadia Code", "Segoe UI Mono", monospace;
+    --font-serif: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "SimSun", serif;
   }
 
   body {

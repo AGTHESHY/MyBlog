@@ -1,7 +1,7 @@
 /**
- * 网易云音乐开放平台（openapi.music.163.com）
- * 文档：https://developer.music.163.com/st/developer/document?docId=1a5fb2c7b30b44609fa81129a8e1908d
- * 支持：应用级 token + 用户 OAuth 登录（更高播放权限）
+ * 网易云音乐开放平台（个人开发者 CLI）
+ * CLI 文档：https://developer.music.163.com/st/developer/document?docId=2327e302009c437eb02af48f63d6e514
+ * 音乐 API：https://developer.music.163.com/st/developer/document?docId=81958035bf3a4ab691d34b84be706ceb
  */
 
 import crypto from 'crypto';
@@ -14,7 +14,8 @@ import {
   type NeteaseUserSession,
 } from './netease-user-session';
 
-const OPENAPI_BASE = 'https://openapi.music.163.com';
+export const NETEASE_OPENAPI_BASE =
+  process.env.NETEASE_OPENAPI_BASE?.trim() || 'https://openncm.music.163.com';
 
 type TokenCache = { token: string; expireAt: number };
 let clientTokenCache: TokenCache | null = null;
@@ -100,19 +101,20 @@ function defaultDevice() {
     process.env.NETEASE_DEVICE_ID?.trim() ||
     `blog-${crypto.createHash('md5').update(process.env.NETEASE_APP_ID || 'xhblogs').digest('hex').slice(0, 16)}`;
   return {
-    deviceType: 'web',
-    os: 'web',
+    deviceType: 'openapi',
+    os: 'ncmcli',
+    channel: 'ncmcli',
+    brand: 'ncmcli',
+    model: 'linux_docker_cli',
     appVer: '1.0.0',
-    channel: 'web',
-    model: 'server',
     deviceId,
-    brand: 'xhblogs',
-    osVer: '1.0',
+    clientIp: '127.0.0.1',
+    osVer: '1.0.0',
   };
 }
 
 function rsaSign(content: string, privateKeyPem: string): string {
-  const signer = crypto.createSign('RSA_SHA256');
+  const signer = crypto.createSign('RSA-SHA256');
   signer.update(content, 'utf8');
   signer.end();
   return signer.sign(privateKeyPem, 'base64');
@@ -159,7 +161,7 @@ async function openApiRequest<T>(
   if (!config) return { ok: false, data: null, message: '未配置开放平台凭证' };
 
   const qs = toQueryString(buildSignedQuery(config, bizContent, accessToken));
-  const url = `${OPENAPI_BASE}${path}?${qs}`;
+  const url = `${NETEASE_OPENAPI_BASE}${path}?${qs}`;
 
   try {
     const res = await fetch(url, { cache: 'no-store' });
@@ -180,6 +182,34 @@ async function openApiGet<T>(
 ): Promise<T | null> {
   const result = await openApiRequest<T>(path, bizContent, accessToken);
   return result.ok ? result.data : null;
+}
+
+async function openApiPostJson<T>(
+  path: string,
+  bizContent: Record<string, unknown>,
+  accessToken?: string
+): Promise<{ ok: boolean; data: T | null; message?: string }> {
+  const config = getNeteaseOpenConfig();
+  if (!config) return { ok: false, data: null, message: '未配置开放平台凭证' };
+
+  const signed = buildSignedQuery(config, bizContent, accessToken);
+  const url = `${NETEASE_OPENAPI_BASE}${path}`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(signed),
+      cache: 'no-store',
+    });
+    const json = (await res.json()) as OpenApiJson<T>;
+    if (json?.code === 200 && json.data !== undefined) {
+      return { ok: true, data: json.data };
+    }
+    return { ok: false, data: null, message: json?.message || `接口返回 ${json?.code ?? res.status}` };
+  } catch (e) {
+    return { ok: false, data: null, message: e instanceof Error ? e.message : '网络错误' };
+  }
 }
 
 function parseTokenPayload(data: {
@@ -207,6 +237,20 @@ export async function fetchClientAccessToken(): Promise<string | null> {
   const now = Date.now();
   if (clientTokenCache && clientTokenCache.expireAt > now + 60_000) {
     return clientTokenCache.token;
+  }
+
+  const anonResult = await openApiPostJson<{
+    accessToken?: string;
+    token?: string;
+    expireTime?: number;
+    expiresIn?: number;
+  }>('/openapi/music/basic/oauth2/login/anonymous', { clientId: config.appId });
+  if (anonResult.ok && anonResult.data) {
+    const parsed = parseTokenPayload(anonResult.data);
+    if (parsed) {
+      clientTokenCache = { token: parsed.accessToken, expireAt: parsed.expireAt };
+      return parsed.accessToken;
+    }
   }
 
   const tokenPaths = [
@@ -266,6 +310,7 @@ export async function refreshUserAccessToken(refreshToken: string): Promise<Nete
   if (!config) return null;
 
   const paths = [
+    '/openapi/music/basic/oauth2/token/refresh/get/v2',
     '/openapi/oauth2/access/token/refresh/get/v2',
     '/openapi/oauth2/token/refresh/get/v2',
   ];
@@ -325,7 +370,7 @@ export async function getNeteaseAuthorizeUrl(redirectUri: string, state: string)
     }
   }
 
-  return `${OPENAPI_BASE}/oauth2/authorize?appId=${encodeURIComponent(config.appId)}&redirectUri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}&responseType=code`;
+  return `${NETEASE_OPENAPI_BASE}/oauth2/authorize?appId=${encodeURIComponent(config.appId)}&redirectUri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}&responseType=code`;
 }
 
 /** 授权码换取用户 accessToken */
@@ -496,27 +541,46 @@ async function saveUserSessionFromTokenPayload(
   return session;
 }
 
-/** 生成扫码登录 unikey（开放平台二维码登录） */
+/** 生成扫码登录 unikey（CLI 开放平台二维码登录，需先匿名登录） */
 export async function createOpenApiQrLogin(): Promise<{
   unikey: string;
+  qrCodeUrl?: string;
   message?: string;
 }> {
   if (!isNeteaseOpenApiConfigured()) {
     return { unikey: '', message: '未配置开放平台凭证' };
   }
 
+  const clientToken = await fetchClientAccessToken();
+  if (!clientToken) {
+    return { unikey: '', message: '无法获取匿名 token，请检查 AppID / AppSecret / 私钥' };
+  }
+
   const paths = [
+    '/openapi/music/basic/user/oauth2/qrcodekey/get/v2',
     '/openapi/oauth2/login/qrcode/unikey/get/v2',
     '/openapi/oauth2/qrcode/unikey/get/v2',
-    '/openapi/oauth2/qrcode/key/get/v2',
   ];
-  const bizVariants: Record<string, unknown>[] = [{ type: 1 }, { type: '1' }, {}];
+  const bizVariants: Record<string, unknown>[] = [
+    { type: 2, expiredKey: '300' },
+    { type: 2 },
+    { type: 1 },
+    {},
+  ];
 
-  for (const path of paths) {
+  for (const apiPath of paths) {
     for (const biz of bizVariants) {
-      const data = await openApiGet<Record<string, unknown>>(path, biz);
+      const data = await openApiGet<Record<string, unknown>>(apiPath, biz, clientToken);
       const unikey = pickUnikey(data);
-      if (unikey) return { unikey };
+      if (unikey) {
+        const qrCodeUrl =
+          typeof data?.qrCodeUrl === 'string'
+            ? data.qrCodeUrl
+            : typeof data?.qrcodeUrl === 'string'
+              ? data.qrcodeUrl
+              : undefined;
+        return { unikey, qrCodeUrl };
+      }
     }
   }
 
@@ -533,47 +597,59 @@ export async function pollOpenApiQrLogin(unikey: string): Promise<{
 }> {
   if (!unikey) return { status: 'error', message: '缺少二维码 key' };
 
+  const clientToken = await fetchClientAccessToken();
+
   const paths = [
+    '/openapi/music/basic/user/oauth2/qrcodekey/check/get/v2',
+    '/openapi/music/basic/user/oauth2/qrcodekey/unikey/check/get/v2',
+    '/openapi/music/basic/user/oauth2/qrcodekey/scan/get/v2',
     '/openapi/oauth2/login/qrcode/client/login/get/v2',
     '/openapi/oauth2/qrcode/client/login/get/v2',
     '/openapi/oauth2/qrcode/check/get/v2',
   ];
   const bizVariants: Record<string, unknown>[] = [
+    { uniKey: unikey, type: 2 },
+    { key: unikey, type: 2 },
+    { unikey, type: 2 },
     { key: unikey, type: 1 },
-    { key: unikey, type: '1' },
     { unikey, type: 1 },
     { key: unikey },
   ];
 
-  for (const path of paths) {
+  for (const apiPath of paths) {
     for (const biz of bizVariants) {
-      const result = await openApiRequest<Record<string, unknown>>(path, biz);
-      if (!result.ok || !result.data) continue;
+      for (const request of [
+        () => openApiRequest<Record<string, unknown>>(apiPath, biz, clientToken ?? undefined),
+        () => openApiPostJson<Record<string, unknown>>(apiPath, biz, clientToken ?? undefined),
+      ]) {
+        const result = await request();
+        if (!result.ok || !result.data) continue;
 
-      const data = result.data;
-      const code = pickStatusCode(data);
+        const data = result.data;
+        const code = pickStatusCode(data);
 
-      if (code === 800) return { status: 'expired', message: '二维码已过期，请刷新后重试' };
-      if (code === 801) return { status: 'waiting', message: '请使用网易云音乐 App 扫码' };
-      if (code === 802) return { status: 'scanned', message: '已扫码，请在手机上确认登录' };
+        if (code === 800) return { status: 'expired', message: '二维码已过期，请刷新后重试' };
+        if (code === 801) return { status: 'waiting', message: '请使用网易云音乐 App 扫码' };
+        if (code === 802) return { status: 'scanned', message: '已扫码，请在手机上确认登录' };
 
-      const directToken = data.accessToken || data.token;
-      if (code === 803 || (typeof directToken === 'string' && directToken)) {
-        const parsed = parseTokenPayload({
-          accessToken: typeof directToken === 'string' ? directToken : undefined,
-          token: typeof data.token === 'string' ? data.token : undefined,
-          refreshToken: typeof data.refreshToken === 'string' ? data.refreshToken : undefined,
-          expireTime: typeof data.expireTime === 'number' ? data.expireTime : undefined,
-          expiresIn: typeof data.expiresIn === 'number' ? data.expiresIn : undefined,
-        });
-        if (parsed) {
-          const session = await saveUserSessionFromTokenPayload(data, parsed);
-          return { status: 'success', session };
+        const directToken = data.accessToken || data.token;
+        if (code === 803 || (typeof directToken === 'string' && directToken)) {
+          const parsed = parseTokenPayload({
+            accessToken: typeof directToken === 'string' ? directToken : undefined,
+            token: typeof data.token === 'string' ? data.token : undefined,
+            refreshToken: typeof data.refreshToken === 'string' ? data.refreshToken : undefined,
+            expireTime: typeof data.expireTime === 'number' ? data.expireTime : undefined,
+            expiresIn: typeof data.expiresIn === 'number' ? data.expiresIn : undefined,
+          });
+          if (parsed) {
+            const session = await saveUserSessionFromTokenPayload(data, parsed);
+            return { status: 'success', session };
+          }
+
+          const exchanged = await exchangeQrKeyForUserToken(unikey, clientToken ?? undefined);
+          if (exchanged.session) return { status: 'success', session: exchanged.session };
+          return { status: 'error', message: exchanged.message || '扫码成功但换取 token 失败' };
         }
-
-        const exchanged = await exchangeQrKeyForUserToken(unikey);
-        if (exchanged.session) return { status: 'success', session: exchanged.session };
-        return { status: 'error', message: exchanged.message || '扫码成功但换取 token 失败' };
       }
     }
   }
@@ -581,21 +657,25 @@ export async function pollOpenApiQrLogin(unikey: string): Promise<{
   return { status: 'waiting', message: '等待扫码…' };
 }
 
-async function exchangeQrKeyForUserToken(unikey: string) {
+async function exchangeQrKeyForUserToken(unikey: string, clientToken?: string) {
   const paths = [
+    '/openapi/music/basic/user/oauth2/qrcodekey/access/token/get/v2',
     '/openapi/oauth2/login/qrcode/access/token/get/v2',
     '/openapi/oauth2/qrcode/access/token/get/v2',
     '/openapi/oauth2/qrcode/token/get/v2',
   ];
   const bizVariants: Record<string, unknown>[] = [
+    { uniKey: unikey, type: 2 },
+    { key: unikey, type: 2 },
+    { unikey, type: 2 },
     { key: unikey, type: 1 },
     { unikey, type: 1 },
     { key: unikey },
   ];
 
-  for (const path of paths) {
+  for (const apiPath of paths) {
     for (const biz of bizVariants) {
-      const result = await openApiRequest<Record<string, unknown>>(path, biz);
+      const result = await openApiRequest<Record<string, unknown>>(apiPath, biz, clientToken);
       if (!result.ok || !result.data) continue;
       const parsed = parseTokenPayload({
         accessToken:
@@ -615,8 +695,8 @@ async function exchangeQrKeyForUserToken(unikey: string) {
   return { session: null, message: '二维码登录换 token 失败' };
 }
 
-export function buildNeteaseQrImageUrl(unikey: string) {
-  const qrUrl = `https://music.163.com/login?codekey=${encodeURIComponent(unikey)}`;
+export function buildNeteaseQrImageUrl(unikey: string, qrCodeUrl?: string) {
+  const qrUrl = qrCodeUrl || `https://music.163.com/login?codekey=${encodeURIComponent(unikey)}`;
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrUrl)}`;
   return { qrUrl, qrImageUrl };
 }

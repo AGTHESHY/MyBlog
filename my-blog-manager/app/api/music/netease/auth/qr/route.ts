@@ -19,7 +19,7 @@ export async function POST() {
     );
   }
 
-  const { unikey, message } = await createOpenApiQrLogin();
+  const { unikey, qrCodeUrl, message } = await createOpenApiQrLogin();
   if (!unikey) {
     return NextResponse.json({ success: false, message: message || '无法生成二维码' }, { status: 500 });
   }
@@ -28,7 +28,7 @@ export async function POST() {
   const expiresAt = Date.now() + NETEASE_QR_TTL_MS;
   await saveNeteaseQrPending(sessionId, unikey, expiresAt);
 
-  const { qrUrl, qrImageUrl } = buildNeteaseQrImageUrl(unikey);
+  const { qrUrl, qrImageUrl } = buildNeteaseQrImageUrl(unikey, qrCodeUrl);
 
   return NextResponse.json({
     success: true,

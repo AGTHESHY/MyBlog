@@ -100,6 +100,44 @@ docker compose up -d --build
 
 默认已使用国内 npmmirror，并开启 npm 重试。
 
+## 构建失败：无法连接 `fonts.gstatic.com`
+
+前台与后台已改用系统字体栈（`globals.css`），构建时不再请求 Google Fonts。若你自行改回 `next/font/google`，需在能访问 `fonts.gstatic.com` 的环境构建，或配置代理。
+
+## 网易云音乐（个人开发者 / CLI 密钥）
+
+开放平台要求 RSA 密钥对，并将**单行公钥**上传到控制台。详见[官方 CLI 文档](https://developer.music.163.com/st/developer/document?docId=2327e302009c437eb02af48f63d6e514)。
+
+### 方式 A：控制台已有私钥（推荐）
+
+若创建应用时已在控制台生成密钥对，直接将 **AppID**、**AppSecret**、**PrivateKey（PKCS8 单行）** 写入 `.env`，然后：
+
+```bash
+node scripts/sync-netease-key.mjs   # 私钥写入 config/netease_private_key.pem 供 Docker 挂载
+docker compose up -d --build
+```
+
+### 方式 B：本地 OpenSSL 生成新密钥对
+
+```bash
+# 1. 生成密钥对（需本机 openssl）
+node scripts/netease-setup-keys.mjs generate
+
+# 2. 将输出的单行公钥粘贴到网易云控制台 → 应用 → 接口加密方式
+
+# 3. 在 .env 填写 NETEASE_APP_ID、NETEASE_APP_SECRET 后同步私钥
+node scripts/netease-setup-keys.mjs sync-env
+
+# 4. 重建并启动
+docker compose up -d --build
+```
+
+在管理后台 **设置 → 音乐** 使用网易云 App **扫码登录**。验证凭证是否生效：
+
+- http://localhost:3001/api/music/netease/auth/debug（`clientTokenOk: true`、`authMode: cli` 表示签名与匿名 token 正常）
+
+回调地址须与 `.env` 中 `NETEASE_REDIRECT_URI` 一致（本地默认 `http://localhost:3001/api/music/netease/auth/callback`）。
+
 ## 说明
 
 - 管理后台在浏览器中仍通过 `http://127.0.0.1:8000` 调用图床 API，因此 `CMS_API_PORT` 需与映射到宿主机的端口一致。

@@ -92,11 +92,19 @@ export default function MusicSection({
                 ? '当前使用用户级 token，可获取更高码率与 VIP 曲目播放权限'
                 : !neteaseAuth?.configured
                   ? neteaseAuth?.message ||
-                    '请在仓库根目录 .env 填写 NETEASE_APP_ID / NETEASE_APP_SECRET / NETEASE_PRIVATE_KEY，然后重启管理端'
+                    '个人开发者请用 CLI 生成密钥：node scripts/netease-setup-keys.mjs generate，再将 AppID/Secret 写入 .env 后重启'
                   : neteaseAuth?.message ||
                     '默认使用匿名 token；扫码登录后可播放更多 VIP 曲目'}
             </p>
             <div className="flex flex-wrap gap-3 mt-1">
+              <a
+                href="https://developer.music.163.com/st/developer/document?docId=2327e302009c437eb02af48f63d6e514"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[10px] text-indigo-500 hover:underline"
+              >
+                CLI 生成密钥对（个人开发者）→
+              </a>
               <a
                 href="https://developer.music.163.com/st/developer/document?docId=2bb12a93e71a4be0842243b930c2f33c"
                 target="_blank"

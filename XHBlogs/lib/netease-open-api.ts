@@ -1,16 +1,19 @@
 /**
- * 网易云音乐开放平台（openapi.music.163.com）
- * 参考：https://developer.music.163.com 与 OpenAPI 文档（RSA_SHA256 + bizContent）
+ * 网易云音乐开放平台（个人开发者 CLI）
+ * CLI 文档：https://developer.music.163.com/st/developer/document?docId=2327e302009c437eb02af48f63d6e514
  */
 
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import {
   loadNeteaseUserSession,
   saveNeteaseUserSession,
   type NeteaseUserSession,
 } from './netease-user-session';
 
-const OPENAPI_BASE = 'https://openapi.music.163.com';
+export const NETEASE_OPENAPI_BASE =
+  process.env.NETEASE_OPENAPI_BASE?.trim() || 'https://openncm.music.163.com';
 
 type TokenCache = { token: string; expireAt: number };
 let clientTokenCache: TokenCache | null = null;
@@ -24,9 +27,31 @@ export type NeteaseOpenConfig = {
 export function getNeteaseOpenConfig(): NeteaseOpenConfig | null {
   const appId = process.env.NETEASE_APP_ID?.trim();
   const appSecret = process.env.NETEASE_APP_SECRET?.trim();
-  const privateKey = normalizePrivateKey(process.env.NETEASE_PRIVATE_KEY);
+  const privateKey = normalizePrivateKey(resolvePrivateKeyRaw().raw);
   if (!appId || !appSecret || !privateKey) return null;
   return { appId, appSecret, privateKey };
+}
+
+function resolvePrivateKeyRaw(): { raw: string; source: string } {
+  const fromEnv = process.env.NETEASE_PRIVATE_KEY?.trim();
+  if (fromEnv) return { raw: fromEnv, source: 'env:NETEASE_PRIVATE_KEY' };
+
+  const candidates = [
+    process.env.NETEASE_PRIVATE_KEY_PATH?.trim(),
+    path.join(process.cwd(), 'config', 'netease_private_key.pem'),
+    path.join(process.cwd(), '..', 'config', 'netease_private_key.pem'),
+  ].filter((p): p is string => !!p);
+
+  for (const filePath of candidates) {
+    try {
+      if (!fs.existsSync(filePath)) continue;
+      const text = fs.readFileSync(filePath, 'utf8').trim();
+      if (text) return { raw: text, source: `file:${filePath}` };
+    } catch {
+      continue;
+    }
+  }
+  return { raw: '', source: 'none' };
 }
 
 export function isNeteaseOpenApiConfigured() {
@@ -43,16 +68,19 @@ function normalizePrivateKey(raw?: string): string {
 }
 
 function defaultDevice() {
-  const deviceId = process.env.NETEASE_DEVICE_ID?.trim() || `blog-${crypto.createHash('md5').update(process.env.NETEASE_APP_ID || 'xhblogs').digest('hex').slice(0, 16)}`;
+  const deviceId =
+    process.env.NETEASE_DEVICE_ID?.trim() ||
+    `blog-${crypto.createHash('md5').update(process.env.NETEASE_APP_ID || 'xhblogs').digest('hex').slice(0, 16)}`;
   return {
-    deviceType: 'web',
-    os: 'web',
+    deviceType: 'openapi',
+    os: 'ncmcli',
+    channel: 'ncmcli',
+    brand: 'ncmcli',
+    model: 'linux_docker_cli',
     appVer: '1.0.0',
-    channel: 'web',
-    model: 'server',
     deviceId,
-    brand: 'xhblogs',
-    osVer: '1.0',
+    clientIp: '127.0.0.1',
+    osVer: '1.0.0',
   };
 }
 
@@ -102,10 +130,37 @@ async function openApiGet<T>(
   if (!config) return null;
 
   const qs = toQueryString(buildSignedQuery(config, bizContent, accessToken));
-  const url = `${OPENAPI_BASE}${path}?${qs}`;
+  const url = `${NETEASE_OPENAPI_BASE}${path}?${qs}`;
 
   try {
     const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { code?: number; data?: T; message?: string };
+    if (json?.code === 200 && json.data !== undefined) return json.data;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function openApiPostJson<T>(
+  path: string,
+  bizContent: Record<string, unknown>,
+  accessToken?: string
+): Promise<T | null> {
+  const config = getNeteaseOpenConfig();
+  if (!config) return null;
+
+  const signed = buildSignedQuery(config, bizContent, accessToken);
+  const url = `${NETEASE_OPENAPI_BASE}${path}`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(signed),
+      cache: 'no-store',
+    });
     if (!res.ok) return null;
     const json = (await res.json()) as { code?: number; data?: T; message?: string };
     if (json?.code === 200 && json.data !== undefined) return json.data;
@@ -136,6 +191,20 @@ async function fetchClientAccessToken(config: NeteaseOpenConfig): Promise<string
   const now = Date.now();
   if (clientTokenCache && clientTokenCache.expireAt > now + 60_000) {
     return clientTokenCache.token;
+  }
+
+  const anonData = await openApiPostJson<{
+    accessToken?: string;
+    token?: string;
+    expireTime?: number;
+    expiresIn?: number;
+  }>('/openapi/music/basic/oauth2/login/anonymous', { clientId: config.appId });
+  if (anonData) {
+    const parsed = parseTokenPayload(anonData);
+    if (parsed) {
+      clientTokenCache = { token: parsed.accessToken, expireAt: parsed.expireAt };
+      return parsed.accessToken;
+    }
   }
 
   const tokenPaths = [
@@ -170,6 +239,7 @@ async function fetchClientAccessToken(config: NeteaseOpenConfig): Promise<string
 
 async function refreshUserAccessToken(refreshToken: string): Promise<NeteaseUserSession | null> {
   const paths = [
+    '/openapi/music/basic/oauth2/token/refresh/get/v2',
     '/openapi/oauth2/access/token/refresh/get/v2',
     '/openapi/oauth2/token/refresh/get/v2',
   ];

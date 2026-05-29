@@ -244,3 +244,17 @@ export async function getSiteSetting(key: string): Promise<string | null> {
   );
   return rows[0]?.value_text ?? null;
 }
+
+export async function updateSiteSettings(updates: Record<string, unknown>) {
+  for (const [key, value] of Object.entries(updates || {})) {
+    await query<RowDataPacket[]>(
+      `INSERT INTO site_settings (setting_key, value_text)
+       VALUES (:setting_key, :value_text)
+       ON DUPLICATE KEY UPDATE value_text = VALUES(value_text), updated_at = NOW()`,
+      {
+        setting_key: key,
+        value_text: typeof value === 'string' ? value : JSON.stringify(value),
+      }
+    );
+  }
+}
