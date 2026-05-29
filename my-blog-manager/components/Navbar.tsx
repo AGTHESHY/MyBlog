@@ -6,10 +6,11 @@ import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOperations } from '../context/OperationContext';
 import { useToast } from './ToastProvider';
-import { siteConfig } from '../siteConfig';
+import { useSiteConfig } from './SiteConfigProvider';
 import { dispatchContentSync, type MomentItem } from '../lib/content-sync-events';
 
 export default function Navbar() {
+  const siteConfig = useSiteConfig();
   const [showNav, setShowNav] = useState(true);
   const [isOpBoxOpen, setIsOpBoxOpen] = useState(false);
   const lastScrollYRef = useRef(0);

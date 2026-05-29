@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { query } from '../../../../lib/db';
 import { RowDataPacket } from 'mysql2/promise';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET() {
   const rows = await query<RowDataPacket[]>('SELECT setting_key, value_text FROM site_settings');
   const data: Record<string, unknown> = {};

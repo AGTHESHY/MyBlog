@@ -1,10 +1,13 @@
-import { siteConfig } from "@/siteConfig";
 import MusicClient from "./MusicClient";
+import { getRuntimeSiteConfig } from "../lib/runtime-site-config";
 
-// 🌟 这里是服务端渲染，完美支持 metadata
-export const metadata = {
-  title: "音乐馆 | " + siteConfig.title,
-};
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+export async function generateMetadata() {
+  const siteConfig = await getRuntimeSiteConfig();
+  return { title: `音乐馆 | ${siteConfig.title}` };
+}
 
 export default function MusicPage() {
   return <MusicClient />;

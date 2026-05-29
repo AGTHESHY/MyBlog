@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from 'next/dynamic';
-import { siteConfig } from '../siteConfig';
+import { useSiteConfig } from './SiteConfigProvider';
 import DeferredChrome from './DeferredChrome';
 import BackgroundSlider from './BackgroundSlider';
 
@@ -18,6 +18,7 @@ type LayoutChromeProps = {
 };
 
 export default function LayoutChrome({ children }: LayoutChromeProps) {
+  const siteConfig = useSiteConfig();
   return (
     <>
       <div className="fixed inset-0 z-[-1] pointer-events-none overflow-hidden site-bg-layer">

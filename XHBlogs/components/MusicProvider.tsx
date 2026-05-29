@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useRef, useEffect, useCallback, ReactNode } from 'react';
-import { siteConfig } from '../siteConfig';
+import { useSiteConfig } from './SiteConfigProvider';
 import { filterValidNeteaseSongIds, isLyricUrl, mapPlayableToPlaylistItem } from '../lib/netease-music-shared';
 import {
   findPlaylistIndexBySongId,
@@ -65,6 +65,7 @@ interface MusicContextType {
 const MusicContext = createContext<MusicContextType | null>(null);
 
 export function MusicProvider({ children }: { children: ReactNode }) {
+  const siteConfig = useSiteConfig();
   const [playlist, setPlaylist] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -158,7 +159,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     } finally {
       if (!silent) setIsLoading(false);
     }
-  }, []);
+  }, [siteConfig.cloudMusicIds]);
 
   const startBackgroundSync = useCallback(() => {
     if (musicServicesStartedRef.current) return;

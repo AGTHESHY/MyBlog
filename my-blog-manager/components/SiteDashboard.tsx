@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { siteConfig } from '../siteConfig';
+import { useSiteConfig } from './SiteConfigProvider';
 import { formatUptime } from '../lib/format-uptime';
 
 export default function SiteDashboard() {
+  const siteConfig = useSiteConfig();
   const [timeStr, setTimeStr] = useState('');
   const [uptimeStr, setUptimeStr] = useState('');
   const [startMs, setStartMs] = useState<number | null>(null);

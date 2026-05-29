@@ -1,16 +1,20 @@
 import Navbar from '../../components/Navbar';
 import PageTransition from '../../components/PageTransition';
-import { siteConfig } from '../../siteConfig';
 import TimelineClient from '../../components/TimelineClient';
-// 🌟 1. 引入 ToastProvider 喵！
 import { ToastProvider } from '../../components/ToastProvider';
 import { getPosts } from '../../lib/content-store';
+import { getRuntimeSiteConfig } from '../../lib/runtime-site-config';
 
-export const metadata = {
-  title: "归档与探索 | " + siteConfig.title,
-};
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+export async function generateMetadata() {
+  const siteConfig = await getRuntimeSiteConfig();
+  return { title: `归档与探索 | ${siteConfig.title}` };
+}
 
 export default async function Timeline() {
+  const siteConfig = await getRuntimeSiteConfig();
   const posts = await getPosts();
   let tagCounts: Record<string, number> = {};
   posts.forEach((post) => {
@@ -26,9 +30,8 @@ export default async function Timeline() {
     .sort((a, b) => b.count - a.count);
 
   return (
-    // 🌟 2. 在最外层用 ToastProvider 包裹整个页面
     <ToastProvider>
-      <div className="min-h-screen relative pb-32">
+      <div className="min-h-screen relative pb-20">
         <Navbar />
         <PageTransition>
           <TimelineClient posts={posts} tags={tagsArray} />

@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from 'next/navigation';
-import { siteConfig } from '../siteConfig';
 import { useToast } from './ToastProvider';
+import { useSiteConfig } from './SiteConfigProvider';
 
 export default function ProfileCard({ postCount, chatterCount, photoCount }: { postCount: number, chatterCount: number, photoCount: number }) {
+  const siteConfig = useSiteConfig();
   const router = useRouter();
   const { showToast } = useToast();
 

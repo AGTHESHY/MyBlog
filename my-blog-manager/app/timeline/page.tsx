@@ -1,10 +1,14 @@
 import Navbar from '../../components/Navbar';
 import PageTransition from '../../components/PageTransition';
-import { siteConfig } from '../../siteConfig';
 import TimelineClient from '../../components/TimelineClient';
 import { getPosts } from '../../lib/content-store';
+import { getRuntimeSiteConfig } from '../../lib/runtime-site-config';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default async function Timeline() {
+  const siteConfig = await getRuntimeSiteConfig();
   const posts = await getPosts();
   let tagCounts: Record<string, number> = {};
   posts.forEach((post) => {
@@ -20,7 +24,7 @@ export default async function Timeline() {
     .sort((a, b) => b.count - a.count);
 
   return (
-    <div className="min-h-screen relative pb-32">
+    <div className="min-h-screen relative pb-20">
       <Navbar />
       <PageTransition>
         <TimelineClient posts={posts} tags={tagsArray} />

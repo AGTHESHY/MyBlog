@@ -15,7 +15,6 @@ import 'katex/dist/katex.min.css';
 
 import Navbar from '../../components/Navbar';
 import PageTransition from '../../components/PageTransition';
-import { siteConfig } from '../../siteConfig';
 import { getSiteSetting, getSiteSettingUpdatedAt } from '../../lib/content-store';
 
 // 🌟 引入刚刚写好的前端交互引擎

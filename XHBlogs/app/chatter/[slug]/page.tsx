@@ -16,7 +16,7 @@ import 'highlight.js/styles/atom-one-dark.css';
 
 import Navbar from '../../../components/Navbar';
 import PageTransition from '../../../components/PageTransition';
-import { siteConfig } from '../../../siteConfig';
+import { getRuntimeSiteConfig } from '../../../lib/runtime-site-config';
 import ClientSocials from '../../../components/ClientSocials';
 import SidebarLyric from '../../../components/SidebarLyric';
 import BackButton from '../../../components/BackButton';
@@ -108,6 +108,7 @@ function generateCalendarMatrix(year: number, month: number, targetDay: number) 
 }
 
 export default async function ChatterDetail({ params }: { params: Promise<{ slug: string }> }) {
+  const siteConfig = await getRuntimeSiteConfig();
   const resolvedParams = await params;
   const chatterData = await getChatterData(resolvedParams.slug);
   if (!chatterData) {

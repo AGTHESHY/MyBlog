@@ -1,10 +1,11 @@
 "use client";
+import { useSiteConfig } from '../../components/SiteConfigProvider';
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { siteConfig } from '../../siteConfig'; // 确保路径正确，可能需要根据你的目录结构调整为 '../siteConfig'
 
 export default function AdminDashboard() {
+  const siteConfig = useSiteConfig();
   // 当前选中的功能模块
   const [activeTab, setActiveTab] = useState('dashboard');
 

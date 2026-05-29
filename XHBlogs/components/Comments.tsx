@@ -6,9 +6,10 @@ import 'gitalk/dist/gitalk.css';
 import Gitalk from 'gitalk';
 
 // 🌟 引入全局配置，读取你的 GitHub OAuth 凭证
-import { siteConfig } from '../siteConfig'; // 如果路径报错，请检查层级是否需要改成 '../../siteConfig'
+import { useSiteConfig } from './SiteConfigProvider';
 
 export default function Comments() {
+  const siteConfig = useSiteConfig();
   const containerRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
 

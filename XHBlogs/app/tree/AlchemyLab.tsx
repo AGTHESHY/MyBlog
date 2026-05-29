@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 
 // 🌟 引入定制的无干扰留言板组件与站点配置
 import LabComments from '../../components/LabComments';
-import { siteConfig } from '../../siteConfig';
+import { useSiteConfig } from '../../components/SiteConfigProvider';
 
 function seededRandom(seed: number) {
   const x = Math.sin(seed) * 10000;
@@ -176,6 +176,7 @@ const StickyNote = ({ note }: { note: any }) => {
 // 🌟 4. 核心实验室组件 (完全体)
 // ==========================================
 export default function AlchemyLab({ posts = [], chatters = [], moments = [], albums = [], friends = [] }: any) {
+  const siteConfig = useSiteConfig();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);

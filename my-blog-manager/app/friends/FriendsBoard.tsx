@@ -1,4 +1,5 @@
 "use client";
+import { useSiteConfig } from '../../components/SiteConfigProvider';
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,7 +11,6 @@ import FloatingImageTool from '../../components/editor/FloatingImageTool';
 
 // 🌟 新增：引入配置和评论组件
 import Comments from '../../components/Comments';
-import { siteConfig } from '../../siteConfig';
 import { useEffect } from 'react';
 
 type Friend = { id: string; name: string; url: string; description: string; avatar: string; themeColor: string };
@@ -26,6 +26,7 @@ const itemVariants = {
 };
 
 export default function FriendsBoard() {
+  const siteConfig = useSiteConfig();
   const { addOperation } = useOperations();
   const { showToast } = useToast();
 

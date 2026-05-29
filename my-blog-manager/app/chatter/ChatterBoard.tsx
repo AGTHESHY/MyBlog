@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { siteConfig } from '../../siteConfig';
+import { useSiteConfig } from '../../components/SiteConfigProvider';
 import { Plus, Pencil, Trash2, Search, Sparkles, AlertTriangle, X } from 'lucide-react';
 import { useToast } from '../../components/ToastProvider';
 
@@ -17,6 +17,7 @@ type Chatter = {
 };
 
 export default function ChatterBoard({ chatters: initialChatters }: { chatters: Chatter[] }) {
+  const siteConfig = useSiteConfig();
   const [chatters, setChatters] = useState(initialChatters);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTag, setActiveTag] = useState("全部");

@@ -1,13 +1,19 @@
 import Navbar from '../../components/Navbar';
 import PageTransition from '../../components/PageTransition';
 import FriendsBoard from './FriendsBoard';
-import {siteConfig} from "@/siteConfig";
 import { getFriends } from '../../lib/content-store';
+import { getRuntimeSiteConfig } from '../../lib/runtime-site-config';
 
-export const metadata = {
-  title: "友链 | " + siteConfig.title,
-  description: "赛博空间里的有趣灵魂",
-};
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+export async function generateMetadata() {
+  const siteConfig = await getRuntimeSiteConfig();
+  return {
+    title: `友链 | ${siteConfig.title}`,
+    description: '赛博空间里的有趣灵魂',
+  };
+}
 
 export default async function FriendsPage() {
   const friendsData = await getFriends();
@@ -15,9 +21,7 @@ export default async function FriendsPage() {
     <div className="min-h-screen relative pb-20">
       <Navbar />
       <PageTransition>
-        <div className="mt-28">
-          <FriendsBoard friendsData={friendsData} />
-        </div>
+        <FriendsBoard friendsData={friendsData} />
       </PageTransition>
     </div>
   );

@@ -10,7 +10,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { Float, Html } from '@react-three/drei';
 
 import LabComments from '../../components/LabComments';
-import { siteConfig } from '../../siteConfig';
+import { useSiteConfig } from '../../components/SiteConfigProvider';
 
 function seededRandom(seed: number) {
   const x = Math.sin(seed) * 10000;
@@ -322,6 +322,7 @@ const HologramShip = ({ activeCategory, currentRecords, router }: any) => {
 // 🌟 6. 核心页面渲染
 // ==========================================
 export default function DijiangModel({ posts = [], chatters = [], moments = [], albums = [], friends = [] }: any) {
+  const siteConfig = useSiteConfig();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [sysTip, setSysTip] = useState<string | null>(null);

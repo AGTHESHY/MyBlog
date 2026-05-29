@@ -15,7 +15,7 @@ import 'highlight.js/styles/atom-one-dark.css';
 
 import Navbar from '../../../components/Navbar';
 import PageTransition from '../../../components/PageTransition';
-import { siteConfig } from '../../../siteConfig';
+import { getRuntimeSiteConfig } from '../../../lib/runtime-site-config';
 import ClientSocials from '../../../components/ClientSocials';
 import ClientTOC from '../../../components/ClientTOC';
 import BackButton from '../../../components/BackButton';
@@ -107,6 +107,7 @@ async function getPostData(slug: string) {
 }
 
 export default async function Post({ params }: { params: Promise<{ slug: string }> }) {
+  const siteConfig = await getRuntimeSiteConfig();
   const resolvedParams = await params;
   const postData = await getPostData(resolvedParams.slug);
   if (!postData) {

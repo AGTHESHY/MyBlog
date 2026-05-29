@@ -3,7 +3,7 @@ import Link from 'next/link';
 import Navbar from '../components/Navbar';
 import PageTransition from '../components/PageTransition';
 import SearchBar from '../components/SearchBar';
-import { siteConfig } from '../siteConfig';
+import { getRuntimeSiteConfig } from '../lib/runtime-site-config';
 import CloudPlayer from '../components/CloudPlayer';
 import ThemeToggleBlock from '../components/ThemeToggleBlock';
 import ProfileCard from '../components/ProfileCard';
@@ -15,6 +15,9 @@ import { ToastProvider } from '../components/ToastProvider';
 import LatestPostsCarousel from '../components/LatestPostsCarousel';
 import LatestChatterCarousel from '../components/LatestChatterCarousel';
 import DanmakuBackground from '../components/DanmakuBackground';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 function formatUpdateTime(dateString: string) {
   if (!dateString || dateString === '1970-01-01') return '刚刚更新';
@@ -32,6 +35,7 @@ function formatUpdateTime(dateString: string) {
 }
 
 export default async function Home() {
+  const siteConfig = await getRuntimeSiteConfig();
   const allPosts = (await getPosts()).map((p) => ({ ...p, formattedDate: formatUpdateTime(p.date) }));
   const top5Posts = allPosts.length > 0 ? allPosts.slice(0, 5) : [{ slug: 'none', title: '暂无文章', description: '快去写第一篇吧！', cover: siteConfig.defaultPostCover, date: '', formattedDate: '' }];
 

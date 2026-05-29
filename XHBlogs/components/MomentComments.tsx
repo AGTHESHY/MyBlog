@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import 'gitalk/dist/gitalk.css';
 import Gitalk from 'gitalk';
-import { siteConfig } from '../siteConfig';
+import { useSiteConfig } from './SiteConfigProvider';
 
 interface MomentCommentsProps {
   id: string; // 必须传入说说的专属 ID

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import BackButton from '../../components/BackButton';
 import Comments from '../../components/Comments'; // 🌟 引入你的 Gitalk 组件
-import { siteConfig } from '../../siteConfig'; // 🌟 引入刚刚更新的全局配置文件
+import { useSiteConfig } from '../../components/SiteConfigProvider';
 
 // Framer Motion 动画变体：交错子元素
 const containerVariants = {
@@ -23,6 +23,7 @@ const itemVariants = {
 type Friend = { id: string; name: string; url: string; description: string; avatar: string; themeColor: string };
 
 export default function FriendsBoard({ friendsData }: { friendsData: Friend[] }) {
+  const siteConfig = useSiteConfig();
   // 🌟 控制复制按钮的状态
   const [isCopied, setIsCopied] = useState(false);
 

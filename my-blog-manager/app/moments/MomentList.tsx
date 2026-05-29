@@ -5,7 +5,7 @@ import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { MapPin, MessageSquare, Clock, Sparkles, Search, ArrowDownAZ, ArrowUpZA, ChevronLeft, ChevronRight, Ghost, Plus, Image as ImageIcon, X, Send, Link as LinkIcon, Zap, Trash2, AlertTriangle } from 'lucide-react';
 import MomentComments from '../../components/MomentComments';
 import { useToast } from '../../components/ToastProvider';
-import { siteConfig } from '../../siteConfig';
+import { useSiteConfig } from '../../components/SiteConfigProvider';
 import { useOperations } from '../../context/OperationContext';
 import { onContentSync, type MomentItem } from '../../lib/content-sync-events';
 
@@ -20,6 +20,7 @@ function timeAgo(dateStr: string) {
 }
 
 export default function MomentList({ moments, authorName, avatarUrl }: { moments: MomentItem[]; authorName: string; avatarUrl: string }) {
+  const siteConfig = useSiteConfig();
   const [localMoments, setLocalMoments] = useState<MomentItem[]>(moments ?? []);
   const [openCommentId, setOpenCommentId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');

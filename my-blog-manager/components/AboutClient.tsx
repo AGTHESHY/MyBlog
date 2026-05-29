@@ -2,9 +2,10 @@
 
 import { motion } from 'framer-motion';
 import Comments from './Comments';
-import { siteConfig } from '../siteConfig';
+import { useSiteConfig } from './SiteConfigProvider';
 
 export default function AboutClient({
+  const siteConfig = useSiteConfig();
   contentHtml,
   coverImage,
 }: {
