@@ -64,6 +64,10 @@ function SettingsContent() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchResults, setSearchResults] = useState<NeteaseSongMeta[]>([]);
   const [musicDetails, setMusicDetails] = useState<Record<string, any>>({});
+  const [configLoaded, setConfigLoaded] = useState(false);
+  const musicLoadGenRef = useRef(0);
+  const musicDetailsRef = useRef(musicDetails);
+  musicDetailsRef.current = musicDetails;
   const [neteaseAuth, setNeteaseAuth] = useState<NeteaseAuthStatus | null>(null);
   const [neteaseAuthLoading, setNeteaseAuthLoading] = useState(false);
   const [neteaseShowQr, setNeteaseShowQr] = useState(false);
@@ -154,6 +158,8 @@ function SettingsContent() {
       } catch (error) {
         console.error("❌ 请求后端配置通道断开:", error);
         showToast("无法连接到 Python 后端服务", "error");
+      } finally {
+        setConfigLoaded(true);
       }
     };
 
@@ -199,7 +205,12 @@ function SettingsContent() {
   };
 
   useEffect(() => {
-    const idSet = new Set((formData.cloudMusicIds || []).map(String));
+    if (!configLoaded) return;
+
+    const gen = ++musicLoadGenRef.current;
+    const ids = (formData.cloudMusicIds || []).map(String);
+    const idSet = new Set(ids);
+
     setMusicDetails((prev) => {
       const next = { ...prev };
       let changed = false;
@@ -211,33 +222,35 @@ function SettingsContent() {
       }
       return changed ? next : prev;
     });
-  }, [formData.cloudMusicIds]);
 
-  useEffect(() => {
-    const loadInitialMusicDetails = async () => {
-      const details: Record<string, any> = { ...musicDetails };
-      let hasUpdate = false;
-      for (const rawId of formData.cloudMusicIds || []) {
-        const id = String(rawId);
-        if (details[id]) continue;
-        const normalized = normalizeNeteaseSongId(id);
+    if (ids.length === 0) return;
+
+    const loadMusicDetails = async () => {
+      for (const rawId of ids) {
+        if (musicLoadGenRef.current !== gen) return;
+        if (musicDetailsRef.current[rawId]?.name) continue;
+
+        const normalized = normalizeNeteaseSongId(rawId);
         if (!normalized) {
-          details[id] = { error: true, id, name: describeInvalidMusicId(id) };
-          hasUpdate = true;
+          setMusicDetails((prev) =>
+            prev[rawId]
+              ? prev
+              : { ...prev, [rawId]: { error: true, id: rawId, name: describeInvalidMusicId(rawId) } }
+          );
           continue;
         }
+
         const info = await fetchMusicDetail(normalized);
-        if (info) {
-          details[id] = info;
-          hasUpdate = true;
-        }
+        if (musicLoadGenRef.current !== gen) return;
+        setMusicDetails((prev) => ({
+          ...prev,
+          [rawId]: info || { error: true, id: rawId, name: '查询失败或无版权' },
+        }));
       }
-      if (hasUpdate) setMusicDetails(details);
     };
-    if (formData.cloudMusicIds?.length > 0) {
-      loadInitialMusicDetails();
-    }
-  }, [formData.cloudMusicIds]);
+
+    loadMusicDetails();
+  }, [formData.cloudMusicIds, configLoaded]);
 
   const searchMusic = async () => {
     const q = String(formData.musicSearchQuery || '').trim();

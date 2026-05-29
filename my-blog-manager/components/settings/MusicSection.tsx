@@ -203,11 +203,12 @@ export default function MusicSection({
               <p className="text-xs text-slate-400 px-2">还没有歌曲，在右侧搜索并添加吧</p>
             ) : (
               cloudMusicIds.map((id: string, index: number) => {
-                const detail = musicDetails[id];
-                const isInvalid = detail?.error || /[|#]/.test(id) || /^kg:/i.test(id);
+                const songId = String(id);
+                const detail = musicDetails[songId];
+                const isInvalid = detail?.error || /[|#]/.test(songId) || /^kg:/i.test(songId);
                 return (
                   <div
-                    key={`${id}-${index}`}
+                    key={`${songId}-${index}`}
                     className={`flex justify-between items-center p-3 rounded-2xl border group ${
                       isInvalid
                         ? 'bg-red-500/10 border-red-400/40'
