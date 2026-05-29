@@ -23,6 +23,24 @@ services:
       retries: 15
       start_period: 30s
 
+  # MySQL 就绪后建库、建表（CREATE IF NOT EXISTS，可重复执行）
+  db-init:
+    image: mysql:8.0
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_PWD: ${MYSQL_ROOT_PASSWORD:-root}
+    volumes:
+      - ./scripts/migrations/init_mysql.sql:/init.sql:ro
+    entrypoint: ["sh", "-ec"]
+    command:
+      - |
+        echo "Ensuring database and tables..."
+        mysql -h mysql -uroot --default-character-set=utf8mb4 < /init.sql
+        echo "Schema ready."
+    restart: "no"
+
   cms-api:
     build:
       context: ./my-blog-manager
@@ -34,6 +52,8 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
 
   xhblogs:
     build:
@@ -60,6 +80,8 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
 
   blog-manager:
     build:
@@ -88,6 +110,8 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
       cms-api:
         condition: service_started
 

@@ -6,7 +6,8 @@
 
 | 服务 | 容器名 | 默认端口 | 说明 |
 |------|--------|----------|------|
-| mysql | xhblogs-mysql | 3306 | 数据库，首次启动自动执行 `init_mysql.sql` |
+| mysql | xhblogs-mysql | 3306 | 数据库 |
+| db-init | （一次性） | — | MySQL 就绪后自动建库、建表（幂等） |
 | xhblogs | xhblogs-web | 3000 | 博客前台 |
 | blog-manager | xhblogs-manager | 3001 | 管理后台 |
 | cms-api | xhblogs-cms-api | 8000 | 图床上传、Git 部署等 Python API |
@@ -20,16 +21,20 @@
 
 若本机已有名为 `mysql` 的旧容器且占用 **3306**，请先停止，或在 `.env` 里改 `MYSQL_PORT=3307`。
 
-**连接数据库时**：`.env` 里若写了 `MYSQL_PORT=3307`，本机应使用 **3307**（不是 3306）。例如：
+**建库建表**：逻辑就是「MySQL 已启动 → 执行 `init_mysql.sql`」。`docker compose up` 会在 MySQL 健康检查通过后由 **db-init** 自动跑一遍（`CREATE DATABASE/TABLE IF NOT EXISTS`，可重复执行，不依赖空数据卷）。`docker compose build` 不会建表。
+
+本机连库时：`.env` 里若写了 `MYSQL_PORT=3307`，应使用 **3307**（不是容器内的 3306）。例如：
 
 ```bash
 docker exec -it xhblogs-mysql mysql -uroot -proot xhblogs -e "SHOW TABLES;"
 ```
 
-表结构在 MySQL 容器**首次启动且数据卷为空**时由 `scripts/migrations/init_mysql.sql` 自动创建；`docker compose build` 不会建表。若卷已存在但表缺失，可手动执行：
+若 MySQL 已在跑但表仍缺失，可任选其一：
 
 ```bash
-docker exec -i xhblogs-mysql mysql -uroot -proot --default-character-set=utf8mb4 < scripts/migrations/init_mysql.sql
+docker compose run --rm db-init
+# 或
+bash scripts/migrations/apply_mysql_docker.sh
 ```
 
 ### 2. 配置
@@ -72,9 +77,9 @@ docker compose down
 docker compose down -v
 ```
 
-## 重置表结构（已有数据卷时）
+## 重置表结构
 
-`init_mysql.sql` 仅在**首次**创建 MySQL 卷时执行。若需重建表：
+清空数据并重建：
 
 ```powershell
 docker compose down
@@ -82,7 +87,12 @@ docker volume rm xhblogs_mysql_data
 docker compose up -d --build
 ```
 
-或进入 MySQL 容器手动执行 `reset_mysql.sql` + `init_mysql.sql`（须带 `--default-character-set=utf8mb4`）。
+仅删表后重建（保留卷）：
+
+```bash
+docker exec -i xhblogs-mysql mysql -uroot -proot --default-character-set=utf8mb4 < scripts/migrations/reset_mysql.sql
+bash scripts/migrations/apply_mysql_docker.sh
+```
 
 ## 构建失败：`ECONNRESET` / network aborted
 
