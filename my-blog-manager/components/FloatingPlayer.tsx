@@ -7,12 +7,16 @@ import { useState, useEffect } from 'react';
 
 export default function FloatingPlayer() {
   const pathname = usePathname();
-  const { currentSong, isPlaying, togglePlay, nextSong, currentLyric, isLoading } = useMusic();
+  const { currentSong, isPlaying, togglePlay, nextSong, currentLyric, isLoading, ensureInitialized } = useMusic();
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  useEffect(() => {
+    ensureInitialized();
+  }, [ensureInitialized]);
 
   // 这里只拦截还没有初始化的情况，不拦截首页
   if (!isMounted || isLoading || !currentSong) return null;

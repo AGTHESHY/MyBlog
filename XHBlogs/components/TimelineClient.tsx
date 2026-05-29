@@ -18,6 +18,7 @@ export default function TimelineClient({ posts: initialPosts, tags }: { posts: a
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const gridScrollRef = useRef<HTMLDivElement>(null);
+  const gridScrollRafRef = useRef<number | null>(null);
 
   // 🌟 核心魔法 1：强制移动端为矩阵模式
   useEffect(() => {
@@ -60,9 +61,13 @@ export default function TimelineClient({ posts: initialPosts, tags }: { posts: a
   }, [posts, selectedTag]);
 
   const handleGridScroll = () => {
-    if (gridScrollRef.current) {
-      setShowScrollTop(gridScrollRef.current.scrollTop > 200);
-    }
+    if (gridScrollRafRef.current !== null) return;
+    gridScrollRafRef.current = requestAnimationFrame(() => {
+      gridScrollRafRef.current = null;
+      if (!gridScrollRef.current) return;
+      const next = gridScrollRef.current.scrollTop > 200;
+      setShowScrollTop((prev) => (prev === next ? prev : next));
+    });
   };
 
   const scrollToTop = () => {

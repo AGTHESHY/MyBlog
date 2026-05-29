@@ -14,8 +14,13 @@ export default function MusicClient() {
     isLoading, togglePlay, nextSong, prevSong, handleSeek,
     playSong, selectSong, loadStatus, loadMessage,
     playMode, togglePlayMode,
-    volume, setVolume, isMuted, toggleMute
+    volume, setVolume, isMuted, toggleMute,
+    ensureInitialized,
   } = useMusic();
+
+  useEffect(() => {
+    ensureInitialized();
+  }, [ensureInitialized]);
 
   const lyricContainerRef = useRef<HTMLDivElement>(null);
   const activeLyricRef = useRef<HTMLDivElement>(null);

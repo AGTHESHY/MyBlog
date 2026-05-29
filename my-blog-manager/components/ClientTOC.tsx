@@ -55,11 +55,13 @@ export default function ClientTOC({ toc }: { toc: TocItem[] }) {
       heading.id = getSafeId(heading.textContent || '');
     });
 
-    const handleScroll = () => {
+    let scrollRafId: number | null = null;
+
+    const updateActiveHeading = () => {
+      scrollRafId = null;
       const scrollY = window.scrollY;
       const offset = 150;
-
-      let currentActiveId = "";
+      let currentActiveId = '';
 
       for (const heading of headings) {
         const elementTop = heading.getBoundingClientRect().top + scrollY;
@@ -70,13 +72,23 @@ export default function ClientTOC({ toc }: { toc: TocItem[] }) {
         }
       }
 
-      if (currentActiveId) setActiveId(currentActiveId);
+      if (currentActiveId) {
+        setActiveId((prev) => (prev === currentActiveId ? prev : currentActiveId));
+      }
+    };
+
+    const handleScroll = () => {
+      if (scrollRafId !== null) return;
+      scrollRafId = requestAnimationFrame(updateActiveHeading);
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
-    setTimeout(handleScroll, 100);
+    setTimeout(updateActiveHeading, 100);
 
-    return () => window.removeEventListener('scroll', handleScroll);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (scrollRafId !== null) cancelAnimationFrame(scrollRafId);
+    };
   }, [toc]);
 
   const scrollToHeading = (e: React.MouseEvent, id: string) => {

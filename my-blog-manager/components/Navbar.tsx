@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOperations } from '../context/OperationContext';
@@ -11,23 +11,35 @@ import { dispatchContentSync, type MomentItem } from '../lib/content-sync-events
 
 export default function Navbar() {
   const [showNav, setShowNav] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
   const [isOpBoxOpen, setIsOpBoxOpen] = useState(false);
+  const lastScrollYRef = useRef(0);
+  const scrollRafRef = useRef<number | null>(null);
 
   const pathname = usePathname();
   const { operations, removeOperation, clearOperations } = useOperations();
   const { showToast } = useToast();
 
   useEffect(() => {
-    const handleScroll = () => {
+    const updateNavVisibility = () => {
+      scrollRafRef.current = null;
       const currentScrollY = window.scrollY;
-      if (currentScrollY > lastScrollY && currentScrollY > 80) setShowNav(false);
-      else setShowNav(true);
-      setLastScrollY(currentScrollY);
+      const lastScrollY = lastScrollYRef.current;
+      const shouldShow = !(currentScrollY > lastScrollY && currentScrollY > 80);
+      lastScrollYRef.current = currentScrollY;
+      setShowNav((prev) => (prev === shouldShow ? prev : shouldShow));
     };
+
+    const handleScroll = () => {
+      if (scrollRafRef.current !== null) return;
+      scrollRafRef.current = requestAnimationFrame(updateNavVisibility);
+    };
+
     window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY]);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (scrollRafRef.current !== null) cancelAnimationFrame(scrollRafRef.current);
+    };
+  }, []);
 
   // 🌟 这里新增了 /tree 路由
   const navLinks = [

@@ -8,6 +8,7 @@ import rehypeHighlight from 'rehype-highlight';
 import rehypeStringify from 'rehype-stringify';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 // 引入高亮主题
 import 'highlight.js/styles/atom-one-dark.css';

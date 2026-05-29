@@ -8,8 +8,9 @@ import { siteConfig } from '../siteConfig';
 
 export default function Navbar() {
   const [showNav, setShowNav] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const lastScrollYRef = useRef(0);
+  const scrollRafRef = useRef<number | null>(null);
   const pathname = usePathname();
 
   // --- 🌟 物理引擎：菜单转动逻辑 ---
@@ -53,20 +54,28 @@ export default function Navbar() {
     if (isMobileMenuOpen) rawRotation.set(0);
   }, [isMobileMenuOpen, rawRotation]);
 
-  // 控制 PC 端导航栏
+  // 控制 PC 端导航栏（rAF 节流，仅在显示状态变化时 setState）
   useEffect(() => {
-    const handleScroll = () => {
+    const updateNavVisibility = () => {
+      scrollRafRef.current = null;
       const currentScrollY = window.scrollY;
-      if (currentScrollY > lastScrollY && currentScrollY > 80) {
-        setShowNav(false);
-      } else {
-        setShowNav(true);
-      }
-      setLastScrollY(currentScrollY);
+      const lastScrollY = lastScrollYRef.current;
+      const shouldShow = !(currentScrollY > lastScrollY && currentScrollY > 80);
+      lastScrollYRef.current = currentScrollY;
+      setShowNav((prev) => (prev === shouldShow ? prev : shouldShow));
     };
+
+    const handleScroll = () => {
+      if (scrollRafRef.current !== null) return;
+      scrollRafRef.current = requestAnimationFrame(updateNavVisibility);
+    };
+
     window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY]);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (scrollRafRef.current !== null) cancelAnimationFrame(scrollRafRef.current);
+    };
+  }, []);
 
   const navLinks = [
     { name: '首页', href: '/' },

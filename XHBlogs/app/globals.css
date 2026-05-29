@@ -33,13 +33,48 @@
     --tw-prose-links: var(--color-indigo-400);
   }
 
-  [class*="backdrop-blur-"] {
-    will-change: backdrop-filter;
-    -webkit-backdrop-filter: blur(12px);
-  }
-
   .group:hover img {
     will-change: transform;
+  }
+}
+
+/* 固定导航/弹层等少数毛玻璃，避免全局 will-change 拖慢滚动 */
+@layer utilities {
+  .glass-panel {
+    -webkit-backdrop-filter: blur(12px);
+  }
+}
+
+/* 全屏背景与正文滚动合成隔离 */
+.site-bg-layer {
+  isolation: isolate;
+  contain: paint;
+  transform: translateZ(0);
+}
+
+html.animations-paused .site-bg-layer,
+html.animations-paused .site-bg-layer * {
+  animation-play-state: paused !important;
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-enter {
+  animation: pageEnter 0.5s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter {
+    animation: none;
   }
 }
 
@@ -55,10 +90,6 @@ input[type=range]::-webkit-slider-thumb {
 
 /* 4. 火狐专项优化与布局兜底 */
 @layer base {
-  [class*="backdrop-blur-"] {
-    will-change: backdrop-filter;
-  }
-
   @-moz-document url-prefix() {
     [class*="backdrop-blur-md"] {
       backdrop-filter: blur(8px) !important;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import Navbar from '../../components/Navbar';
 import PageTransition from '../../components/PageTransition';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,7 +9,15 @@ import {Beaker, Rocket, Trees, Wrench} from 'lucide-react'; // 🌟 暂时移除
 import { siteConfig } from '../../siteConfig'; // 🌟 引入站点配置
 
 import AlchemyLab from './AlchemyLab';
-import DijiangModel from './DijiangModel';
+
+const DijiangModel = dynamic(() => import('./DijiangModel'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-[70vh] flex items-center justify-center text-slate-500 dark:text-slate-400 text-sm">
+      正在加载 3D 场景…
+    </div>
+  ),
+});
 // import OperatorRecreation from './OperatorRecreation'; // 🌟 先注释掉，以后需要随时可以加回来
 
 export default function CreativeWorkshopClient({ posts = [], chatters = [], moments = [], albums = [], friends = [] }: any) {

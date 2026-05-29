@@ -59,6 +59,7 @@ interface MusicContextType {
   setVolume: (value: number) => void;
   toggleMute: () => void;
   togglePlayMode: () => void;
+  ensureInitialized: () => void;
 }
 
 const MusicContext = createContext<MusicContextType | null>(null);
@@ -71,8 +72,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [lyrics, setLyrics] = useState<{ time: number; text: string }[]>([]);
-  const [currentLyric, setCurrentLyric] = useState('正在连接网易云...');
-  const [isLoading, setIsLoading] = useState(true);
+  const [currentLyric, setCurrentLyric] = useState('♪ 点击播放加载音乐 ♪');
+  const [isLoading, setIsLoading] = useState(false);
   const [loadStatus, setLoadStatus] = useState<LoadStatus>('loading');
   const [loadMessage, setLoadMessage] = useState('');
   const [volume, setVolumeState] = useState(1);
@@ -82,6 +83,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const sourceIdsRef = useRef('');
+  const musicServicesStartedRef = useRef(false);
+  const syncCleanupRef = useRef<(() => void) | null>(null);
 
   const syncPlaylistFromServer = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = opts?.silent;
@@ -157,7 +160,10 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  useEffect(() => {
+  const startBackgroundSync = useCallback(() => {
+    if (musicServicesStartedRef.current) return;
+    musicServicesStartedRef.current = true;
+
     let cancelled = false;
 
     const run = async () => {
@@ -176,12 +182,24 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     };
     document.addEventListener('visibilitychange', onVisible);
 
-    return () => {
+    syncCleanupRef.current = () => {
       cancelled = true;
       clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisible);
+      musicServicesStartedRef.current = false;
     };
   }, [syncPlaylistFromServer]);
+
+  const ensureInitialized = useCallback(() => {
+    startBackgroundSync();
+  }, [startBackgroundSync]);
+
+  useEffect(() => {
+    return () => {
+      syncCleanupRef.current?.();
+      syncCleanupRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     const prefs = loadMusicPlayerPrefs();
@@ -254,6 +272,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   }, [volume, isMuted]);
 
   const togglePlay = () => {
+    ensureInitialized();
     if (audioRef.current) {
       if (isPlaying) audioRef.current.pause();
       else audioRef.current.play().catch(() => setIsPlaying(false));
@@ -262,6 +281,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   };
 
   const nextSong = () => {
+    ensureInitialized();
+    if (playlist.length === 0) return;
     if (playMode === 'random') {
       setCurrentIndex(Math.floor(Math.random() * playlist.length));
     } else {
@@ -270,6 +291,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   };
 
   const prevSong = () => {
+    ensureInitialized();
+    if (playlist.length === 0) return;
     if (playMode === 'random') {
       setCurrentIndex(Math.floor(Math.random() * playlist.length));
     } else {
@@ -278,6 +301,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   };
 
   const playSong = (index: number) => {
+    ensureInitialized();
     setCurrentIndex(index);
     if (!isPlaying) setIsPlaying(true);
   };
@@ -361,6 +385,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         setVolume,
         toggleMute,
         togglePlayMode,
+        ensureInitialized,
       }}
     >
       {children}
