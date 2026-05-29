@@ -35,8 +35,8 @@ export const siteConfig = {
     github: "",
     gitee: "",
     google: "",
-    email: "",
-    qq: "1124533793",
+    email: "wzm1114109617@163.com",
+    qq: "1114109617",
     wechat: "等一瞥惊鸿",
   },
   counts: {

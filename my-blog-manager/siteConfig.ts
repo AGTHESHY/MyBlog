@@ -34,9 +34,9 @@ export const siteConfig = {
   social: {
     github: "https://github.com/heiehiehi",
     gitee: "https://github.com/heiehiehi",
-    google: "mailto:bilibiliwuwuwu@gmail.com",
-    email: "1124533793@qq.com",
-    qq: "1124533793",
+    google: "mailto:wzm1114109617@163.com",
+    email: "wzm1114109617@163.com",
+    qq: "1114109617",
     wechat: "等一瞥惊鸿",
   },
   counts: {
