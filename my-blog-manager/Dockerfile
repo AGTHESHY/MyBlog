@@ -28,6 +28,10 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 RUN chown -R nextjs:nodejs /app
+USER root
+RUN printf '%s\n' '#!/bin/sh' 'export DEPLOYED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"' 'exec "$@"' > /docker-entrypoint-web.sh \
+    && chmod 755 /docker-entrypoint-web.sh
 USER nextjs
 EXPOSE 3000
+ENTRYPOINT ["/docker-entrypoint-web.sh"]
 CMD ["/bin/sh", "-c", "mkdir -p /app/public && printf '{\"api_port\": %s}\\n' \"${CMS_API_PORT:-8000}\" > /app/public/backend_config.json && exec node server.js"]

@@ -84,7 +84,7 @@ export default function FooterSection({ formData, handleUpdate, pushToQueue }: F
           {/* 1. 建站时间选择 */}
           <div>
             <label className="text-xs font-black uppercase text-slate-400 tracking-widest mb-2 flex items-center gap-2">
-              <Calendar size={14} className="text-indigo-400" /> 建站时间 (起始原点)
+              <Calendar size={14} className="text-indigo-400" /> 建站时间（本地开发回退）
             </label>
             <input
               type="datetime-local"
@@ -92,7 +92,9 @@ export default function FooterSection({ formData, handleUpdate, pushToQueue }: F
               onChange={(e) => handleUpdate('buildDate', `${e.target.value}:00`)}
               className="w-full bg-white/60 dark:bg-slate-800/60 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-700 dark:text-slate-200 border border-white/40 dark:border-slate-700/50"
             />
-            <p className="text-[10px] text-slate-400 mt-2 ml-1">首页仪表盘的“运行时间”将根据此时间点自动推算。</p>
+            <p className="text-[10px] text-slate-400 mt-2 ml-1">
+              Docker 部署时运行时间以容器启动为准并自动写入数据库；仅在本机 <code className="text-indigo-400">npm run dev</code> 时使用上方时间作为回退。
+            </p>
           </div>
 
           <hr className="border-white/20 dark:border-slate-700/30" />

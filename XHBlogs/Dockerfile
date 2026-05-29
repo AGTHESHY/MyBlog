@@ -26,6 +26,10 @@ RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+USER root
+RUN printf '%s\n' '#!/bin/sh' 'export DEPLOYED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"' 'exec "$@"' > /docker-entrypoint-web.sh \
+    && chmod 755 /docker-entrypoint-web.sh
 USER nextjs
 EXPOSE 3000
+ENTRYPOINT ["/docker-entrypoint-web.sh"]
 CMD ["node", "server.js"]

@@ -38,7 +38,10 @@ services:
       - |
         echo "Ensuring database and tables..."
         mysql -h mysql -uroot --default-character-set=utf8mb4 < /init.sql
-        echo "Schema ready."
+        DEPLOYED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        mysql -h mysql -uroot --default-character-set=utf8mb4 xhblogs -e \
+          "INSERT INTO site_settings (setting_key, value_text) VALUES ('deployed_at', '${DEPLOYED_AT}') ON DUPLICATE KEY UPDATE value_text = VALUES(value_text), updated_at = NOW();"
+        echo "Schema ready. deployed_at=${DEPLOYED_AT}"
     restart: "no"
 
   cms-api:

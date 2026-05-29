@@ -156,6 +156,7 @@ docker compose up -d --build
 
 ## 说明
 
+- 首页仪表盘「系统运行时间」以 **Docker 容器本次启动时间** 为起点（`docker compose up` / 重建容器时重置），每秒动态刷新；本地 `npm run dev` 时回退为设置里的建站时间。
 - 管理后台在浏览器中仍通过 `http://127.0.0.1:8000` 调用图床 API，因此 `CMS_API_PORT` 需与映射到宿主机的端口一致。
 - Git 部署、SSH 等功能依赖宿主机环境，容器内可能受限；核心内容读写已走 MySQL + Next.js API。
 - 生产环境请修改默认密码，并考虑用 Nginx 反代与 HTTPS。
