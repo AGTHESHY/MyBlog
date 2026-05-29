@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useOperations } from '../context/OperationContext';
 import { useToast } from './ToastProvider';
 import { siteConfig } from '../siteConfig';
+import { dispatchContentSync, type MomentItem } from '../lib/content-sync-events';
 
 export default function Navbar() {
   const [showNav, setShowNav] = useState(true);
@@ -105,15 +106,15 @@ export default function Navbar() {
             showToast(`❌ 任务执行失败: ${data.message}`, "error");
             return;
           }
+
+          if (op.type === 'create_moment' && op.payload) {
+            dispatchContentSync({ type: 'moments:add', moment: op.payload as MomentItem });
+          }
         }
 
         showToast("✅ 任务已全部执行，数据已写入 MySQL！", "success");
         clearOperations();
         setIsOpBoxOpen(false);
-
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
 
       } catch (error: any) {
         showToast(`后端连接异常: ${error.message}`, "error");

@@ -7,6 +7,7 @@ import MomentComments from '../../components/MomentComments';
 import { useToast } from '../../components/ToastProvider';
 import { siteConfig } from '../../siteConfig';
 import { useOperations } from '../../context/OperationContext';
+import { onContentSync, type MomentItem } from '../../lib/content-sync-events';
 
 function timeAgo(dateStr: string) {
   const date = new Date(dateStr);
@@ -18,7 +19,8 @@ function timeAgo(dateStr: string) {
   return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
 }
 
-export default function MomentList({ moments, authorName, avatarUrl }: any) {
+export default function MomentList({ moments, authorName, avatarUrl }: { moments: MomentItem[]; authorName: string; avatarUrl: string }) {
+  const [localMoments, setLocalMoments] = useState<MomentItem[]>(moments ?? []);
   const [openCommentId, setOpenCommentId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
@@ -38,8 +40,26 @@ export default function MomentList({ moments, authorName, avatarUrl }: any) {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  useEffect(() => {
+    setLocalMoments(moments ?? []);
+  }, [moments]);
+
+  useEffect(() => {
+    return onContentSync((event) => {
+      if (event.type === 'moments:add') {
+        setLocalMoments((prev) => {
+          if (prev.some((m) => m.id === event.moment.id)) return prev;
+          return [event.moment, ...prev];
+        });
+      }
+      if (event.type === 'moments:remove') {
+        setLocalMoments((prev) => prev.filter((m) => m.id !== event.id));
+      }
+    });
+  }, []);
+
   const processedMoments = useMemo(() => {
-    let baseMoments = moments ? [...moments] : [];
+    let baseMoments = localMoments ? [...localMoments] : [];
 
     // 拦截并在顶层混合暂缓队列的数据
     const pendingMoments = operations
@@ -66,7 +86,7 @@ export default function MomentList({ moments, authorName, avatarUrl }: any) {
       return sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
     });
     return result;
-  }, [moments, searchQuery, sortOrder, operations]);
+  }, [localMoments, searchQuery, sortOrder, operations]);
 
   const nextImg = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -182,10 +202,13 @@ export default function MomentList({ moments, authorName, avatarUrl }: any) {
 
       const data = await res.json();
       if (data.success) {
-        showToast("🎉 发布成功！正在刷新...", "success");
+        setLocalMoments((prev) => {
+          if (prev.some((m) => m.id === payload.id)) return prev;
+          return [payload, ...prev];
+        });
+        showToast("🎉 发布成功！", "success");
         setIsPublishOpen(false);
         setNewMoment({ content: '', location: '', images: [] });
-        setTimeout(() => window.location.reload(), 1000);
       } else {
         showToast(`⚠️ 后端拒绝了请求：${data.message}`, "error");
       }
@@ -210,8 +233,10 @@ export default function MomentList({ moments, authorName, avatarUrl }: any) {
 
       const data = await res.json();
       if (data.success) {
-        showToast("🗑️ 说说已彻底删除", "success");
-        setTimeout(() => window.location.reload(), 1000);
+        const removedId = deleteConfirmId;
+        setLocalMoments((prev) => prev.filter((m) => m.id !== removedId));
+        if (openCommentId === removedId) setOpenCommentId(null);
+        showToast("🗑️ 说说已删除", "success");
       } else {
         showToast(`删除失败: ${data.message}`, "error");
       }
