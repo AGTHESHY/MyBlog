@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import type { NeteaseAuthStatus } from '../../lib/netease-open-api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOperations } from '../../context/OperationContext';
 import { siteConfig } from '../../siteConfig';
@@ -68,68 +67,11 @@ function SettingsContent() {
   const musicLoadGenRef = useRef(0);
   const musicDetailsRef = useRef(musicDetails);
   musicDetailsRef.current = musicDetails;
-  const [neteaseAuth, setNeteaseAuth] = useState<NeteaseAuthStatus | null>(null);
-  const [neteaseAuthLoading, setNeteaseAuthLoading] = useState(false);
-  const [neteaseShowQr, setNeteaseShowQr] = useState(false);
-  const [neteaseQrImage, setNeteaseQrImage] = useState('');
-  const [neteaseQrStatus, setNeteaseQrStatus] = useState('');
-  const [neteaseQrCountdown, setNeteaseQrCountdown] = useState(0);
-  const neteasePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const neteaseSessionRef = useRef({ sessionId: '', unikey: '', expiresAt: 0 });
-
-  const stopNeteasePoll = useCallback(() => {
-    if (neteasePollRef.current) {
-      clearInterval(neteasePollRef.current);
-      neteasePollRef.current = null;
-    }
-  }, []);
-
-  const fetchNeteaseAuthStatus = useCallback(async () => {
-    try {
-      const res = await fetch('/api/music/netease/auth/status', { cache: 'no-store' });
-      const data = await res.json();
-      if (data.success) {
-        setNeteaseAuth(data.data);
-        return;
-      }
-      setNeteaseAuth({
-        configured: false,
-        loggedIn: false,
-        tokenKind: 'none',
-        message: data.message || '无法读取网易云配置状态',
-      });
-    } catch {
-      setNeteaseAuth({
-        configured: false,
-        loggedIn: false,
-        tokenKind: 'none',
-        message: '无法连接管理端 API，请确认 blog-manager 容器已启动',
-      });
-    }
-  }, []);
 
   useEffect(() => {
     const tab = searchParams.get('tab');
     if (tab) setActiveTab(tab);
-
-    const netease = searchParams.get('netease');
-    if (netease === 'ok') {
-      setActiveTab('music');
-      showToast('网易云用户登录成功，已启用更高播放权限', 'success');
-      fetchNeteaseAuthStatus();
-    } else if (netease === 'denied') {
-      showToast('已取消网易云授权', 'warning');
-    } else if (netease === 'fail') {
-      const msg = searchParams.get('msg');
-      showToast(msg ? decodeURIComponent(msg) : '网易云登录失败', 'error');
-    } else if (netease === 'state_invalid') {
-      showToast('登录状态已过期，请重新点击登录', 'warning');
-    }
-  }, [searchParams, showToast, fetchNeteaseAuthStatus]);
-
-  useEffect(() => {
-    if (activeTab === 'music') fetchNeteaseAuthStatus();
-  }, [activeTab, fetchNeteaseAuthStatus]);
+  }, [searchParams]);
 
   useEffect(() => {
     const fetchRealConfig = async () => {
@@ -275,107 +217,6 @@ function SettingsContent() {
     setSearchLoading(false);
   };
 
-  const startNeteaseQrLogin = useCallback(async () => {
-    stopNeteasePoll();
-    setNeteaseAuthLoading(true);
-    setNeteaseShowQr(true);
-    setNeteaseQrImage('');
-    setNeteaseQrStatus('正在生成二维码…');
-    try {
-      const res = await fetch('/api/music/netease/auth/qr', { method: 'POST', cache: 'no-store' });
-      const data = await res.json();
-      if (!data.success || !data.data?.unikey) {
-        showToast(data.message || '无法生成二维码', 'error');
-        setNeteaseShowQr(false);
-        return;
-      }
-
-      const { sessionId, unikey, qrImageUrl, expiresAt } = data.data;
-      neteaseSessionRef.current = { sessionId, unikey, expiresAt };
-      setNeteaseQrImage(qrImageUrl || '');
-      setNeteaseQrStatus('请使用网易云音乐 App 扫码');
-      setNeteaseQrCountdown(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)));
-
-      neteasePollRef.current = setInterval(async () => {
-        const { sessionId: sid, unikey: key, expiresAt: exp } = neteaseSessionRef.current;
-        if (!sid || !key) return;
-
-        if (exp && exp < Date.now()) {
-          stopNeteasePoll();
-          setNeteaseQrImage('');
-          setNeteaseQrCountdown(0);
-          setNeteaseQrStatus('二维码已过期（约 2 分钟），请点击「刷新二维码」');
-          return;
-        }
-        setNeteaseQrCountdown(Math.max(0, Math.ceil((exp - Date.now()) / 1000)));
-
-        try {
-          const pollRes = await fetch('/api/music/netease/auth/qr/check', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sessionId: sid, unikey: key }),
-            cache: 'no-store',
-          });
-          const poll = await pollRes.json();
-          if (!poll.success) {
-            stopNeteasePoll();
-            setNeteaseQrStatus(poll.message || '轮询失败');
-            return;
-          }
-          const st = poll.data?.status as string;
-          if (poll.data?.message) setNeteaseQrStatus(poll.data.message);
-          if (st === 'success') {
-            stopNeteasePoll();
-            setNeteaseShowQr(false);
-            setNeteaseQrImage('');
-            showToast('网易云扫码登录成功', 'success');
-            await fetchNeteaseAuthStatus();
-          } else if (st === 'expired') {
-            stopNeteasePoll();
-            setNeteaseQrImage('');
-            setNeteaseQrCountdown(0);
-          } else if (st === 'error') {
-            stopNeteasePoll();
-            showToast(poll.data?.message || '登录失败', 'error');
-          }
-        } catch {
-          // 单次轮询失败忽略，下次继续
-        }
-      }, 2000);
-    } catch {
-      showToast('二维码请求失败', 'error');
-      setNeteaseShowQr(false);
-    } finally {
-      setNeteaseAuthLoading(false);
-    }
-  }, [stopNeteasePoll, showToast, fetchNeteaseAuthStatus]);
-
-  const cancelNeteaseQr = useCallback(() => {
-    stopNeteasePoll();
-    setNeteaseShowQr(false);
-    setNeteaseQrImage('');
-    setNeteaseQrStatus('');
-    setNeteaseQrCountdown(0);
-    neteaseSessionRef.current = { sessionId: '', unikey: '', expiresAt: 0 };
-  }, [stopNeteasePoll]);
-
-  useEffect(() => () => stopNeteasePoll(), [stopNeteasePoll]);
-
-  const logoutNetease = async () => {
-    setNeteaseAuthLoading(true);
-    try {
-      const res = await fetch('/api/music/netease/auth/logout', { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        showToast('已退出网易云登录', 'success');
-        await fetchNeteaseAuthStatus();
-      }
-    } catch {
-      showToast('退出失败', 'error');
-    }
-    setNeteaseAuthLoading(false);
-  };
-
   const addSongToPlaylist = async (song: NeteaseSongMeta) => {
     const targetId = String(song.id);
     const exists = formData.cloudMusicIds.some((id: string | number) => String(id) === targetId);
@@ -484,16 +325,6 @@ function SettingsContent() {
                   addSongToPlaylist={addSongToPlaylist}
                   removeSong={removeSong}
                   cloudMusicIds={formData.cloudMusicIds || []}
-                  neteaseAuth={neteaseAuth}
-                  neteaseAuthLoading={neteaseAuthLoading}
-                  neteaseShowQr={neteaseShowQr}
-                  neteaseQrImage={neteaseQrImage}
-                  neteaseQrStatus={neteaseQrStatus}
-                  neteaseQrCountdown={neteaseQrCountdown}
-                  onNeteaseLogin={startNeteaseQrLogin}
-                  onNeteaseRefreshQr={startNeteaseQrLogin}
-                  onNeteaseCancelQr={cancelNeteaseQr}
-                  onNeteaseLogout={logoutNetease}
                 />
               )}
               {activeTab === 'gallery' && <GallerySection key="gallery" formData={formData} handleUpdate={handleUpdate} pushToQueue={pushToQueue} />}

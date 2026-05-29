@@ -132,11 +132,11 @@ node scripts/netease-setup-keys.mjs sync-env
 docker compose up -d --build
 ```
 
-在管理后台 **设置 → 音乐** 使用网易云 App **扫码登录**。验证凭证是否生效：
+在管理后台 **设置 → 音乐** 可查看匿名 token 状态。验证凭证是否生效：
 
-- http://localhost:3001/api/music/netease/auth/debug（`clientTokenOk: true`、`authMode: cli` 表示签名与匿名 token 正常）
+- http://localhost:3001/api/music/netease/auth/debug（`clientTokenOk: true`、`authMode: cli-anonymous` 表示签名与匿名 token 正常）
 
-回调地址须与 `.env` 中 `NETEASE_REDIRECT_URI` 一致（本地默认 `http://localhost:3001/api/music/netease/auth/callback`）。
+个人开发者 CLI 不支持用户登录与 VIP 全曲播放，详见[个人开发者权限说明](https://developer.music.163.com/st/developer/document?docId=3b75ab8e475d41ca93d91ebd4dfd383f)。
 
 ## 说明
 

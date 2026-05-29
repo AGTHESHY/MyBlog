@@ -108,7 +108,6 @@ function cmdSyncEnv() {
   console.log('\n请确认 .env 中已填写：');
   console.log('  NETEASE_APP_ID=控制台 AppID');
   console.log('  NETEASE_APP_SECRET=控制台 AppSecret');
-  console.log('  NETEASE_REDIRECT_URI=http://localhost:3001/api/music/netease/auth/callback');
   console.log('\n验证：访问 http://localhost:3001/api/music/netease/auth/debug');
 }
 

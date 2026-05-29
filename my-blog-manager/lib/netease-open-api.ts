@@ -7,12 +7,6 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import {
-  clearNeteaseUserSession,
-  loadNeteaseUserSession,
-  saveNeteaseUserSession,
-  type NeteaseUserSession,
-} from './netease-user-session';
 
 export const NETEASE_OPENAPI_BASE =
   process.env.NETEASE_OPENAPI_BASE?.trim() || 'https://openncm.music.163.com';
@@ -26,11 +20,10 @@ export type NeteaseOpenConfig = {
   privateKey: string;
 };
 
+/** 个人开发者 CLI 仅支持匿名（应用级）token */
 export type NeteaseAuthStatus = {
   configured: boolean;
-  loggedIn: boolean;
-  tokenKind: 'none' | 'client' | 'user';
-  user?: Pick<NeteaseUserSession, 'nickname' | 'avatar' | 'openId' | 'expireAt' | 'loginAt'>;
+  tokenKind: 'none' | 'client';
   message?: string;
 };
 
@@ -82,7 +75,7 @@ export function getNeteaseOpenConfigHint(): string {
     missing.push('NETEASE_PRIVATE_KEY（或 config/netease_private_key.pem）');
   }
   if (missing.length === 0) {
-    return '已读取开放平台凭证。若扫码仍失败请执行：docker compose up -d --force-recreate blog-manager';
+    return '已读取开放平台凭证（匿名模式）。若 token 获取失败请执行：docker compose up -d --force-recreate blog-manager';
   }
   return `缺少：${missing.join('、')}。私钥过长时请运行 node scripts/sync-netease-key.mjs 并重建容器。`;
 }
@@ -282,428 +275,33 @@ export async function fetchClientAccessToken(): Promise<string | null> {
   return null;
 }
 
-/** 用户级 token：优先于应用级，用于 VIP/高码率等 */
-export async function resolveOpenApiAccessToken(): Promise<{
-  token: string;
-  kind: 'user' | 'client';
-} | null> {
-  const user = await loadNeteaseUserSession();
-  const now = Date.now();
-
-  if (user?.accessToken) {
-    if (user.expireAt > now + 60_000) {
-      return { token: user.accessToken, kind: 'user' };
-    }
-    if (user.refreshToken) {
-      const refreshed = await refreshUserAccessToken(user.refreshToken);
-      if (refreshed) return { token: refreshed.accessToken, kind: 'user' };
-    }
-  }
-
-  const client = await fetchClientAccessToken();
-  if (client) return { token: client, kind: 'client' };
-  return null;
-}
-
-export async function refreshUserAccessToken(refreshToken: string): Promise<NeteaseUserSession | null> {
-  const config = getNeteaseOpenConfig();
-  if (!config) return null;
-
-  const paths = [
-    '/openapi/music/basic/oauth2/token/refresh/get/v2',
-    '/openapi/oauth2/access/token/refresh/get/v2',
-    '/openapi/oauth2/token/refresh/get/v2',
-  ];
-  const bizVariants = [{ refreshToken }, { grantType: 'refresh_token', refreshToken }];
-
-  for (const path of paths) {
-    for (const biz of bizVariants) {
-      const data = await openApiGet<{
-        accessToken?: string;
-        token?: string;
-        refreshToken?: string;
-        expireTime?: number;
-        expiresIn?: number;
-      }>(path, biz);
-      const parsed = data ? parseTokenPayload(data) : null;
-      if (!parsed) continue;
-
-      const prev = await loadNeteaseUserSession();
-      const session: NeteaseUserSession = {
-        accessToken: parsed.accessToken,
-        refreshToken: parsed.refreshToken || refreshToken,
-        expireAt: parsed.expireAt,
-        openId: prev?.openId,
-        nickname: prev?.nickname,
-        avatar: prev?.avatar,
-        loginAt: prev?.loginAt || Date.now(),
-      };
-      await saveNeteaseUserSession(session);
-      return session;
-    }
-  }
-  return null;
-}
-
-/** 获取 H5 授权登录地址（需在控制台配置相同 redirectUri） */
-export async function getNeteaseAuthorizeUrl(redirectUri: string, state: string): Promise<string | null> {
-  const config = getNeteaseOpenConfig();
-  if (!config) return null;
-
-  const bizVariants: Record<string, unknown>[] = [
-    { redirectUri, state, scope: 'basic' },
-    { redirectUri, state },
-    { redirectUrl: redirectUri, state },
-  ];
-
-  const paths = [
-    '/openapi/oauth2/authorize/url/get/v2',
-    '/openapi/oauth2/h5/login/url/get/v2',
-    '/openapi/oauth2/login/url/get/v2',
-  ];
-
-  for (const path of paths) {
-    for (const biz of bizVariants) {
-      const data = await openApiGet<{ url?: string; loginUrl?: string; authorizeUrl?: string }>(path, biz);
-      const url = data?.url || data?.loginUrl || data?.authorizeUrl;
-      if (url) return url;
-    }
-  }
-
-  return `${NETEASE_OPENAPI_BASE}/oauth2/authorize?appId=${encodeURIComponent(config.appId)}&redirectUri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}&responseType=code`;
-}
-
-/** 授权码换取用户 accessToken */
-export async function exchangeNeteaseAuthCode(
-  code: string,
-  redirectUri: string
-): Promise<{ session: NeteaseUserSession | null; message?: string }> {
-  const config = getNeteaseOpenConfig();
-  if (!config) return { session: null, message: '未配置开放平台凭证' };
-
-  const paths = [
-    '/openapi/oauth2/access/token/get/v2',
-    '/openapi/oauth2/user/access/token/get/v2',
-    '/openapi/oauth2/token/get/v2',
-  ];
-
-  const bizVariants: Record<string, unknown>[] = [
-    { grantType: 'authorization_code', code, redirectUri, appSecret: config.appSecret },
-    { grantType: 'authorization_code', code, redirectUri },
-    { code, redirectUri },
-  ];
-
-  for (const path of paths) {
-    for (const biz of bizVariants) {
-      const result = await openApiRequest<{
-        accessToken?: string;
-        token?: string;
-        refreshToken?: string;
-        expireTime?: number;
-        expiresIn?: number;
-        openId?: string;
-        nickname?: string;
-        avatarUrl?: string;
-      }>(path, biz);
-
-      if (!result.ok || !result.data) continue;
-      const parsed = parseTokenPayload(result.data);
-      if (!parsed) continue;
-
-      let session: NeteaseUserSession = {
-        accessToken: parsed.accessToken,
-        refreshToken: parsed.refreshToken,
-        expireAt: parsed.expireAt,
-        openId: result.data?.openId,
-        nickname: result.data?.nickname,
-        avatar: result.data?.avatarUrl,
-        loginAt: Date.now(),
-      };
-
-      const profile = await fetchOpenApiUserProfile(parsed.accessToken);
-      if (profile) {
-        session = { ...session, ...profile };
-      }
-
-      await saveNeteaseUserSession(session);
-      clientTokenCache = null;
-      return { session };
-    }
-  }
-
-  return { session: null, message: '授权码换 token 失败，请确认控制台 redirectUri 与 .env 一致' };
-}
-
-async function fetchOpenApiUserProfile(accessToken: string) {
-  const paths = [
-    '/openapi/oauth2/user/info/get/v2',
-    '/openapi/music/basic/user/profile/get/v2',
-  ];
-
-  for (const path of paths) {
-    const data = await openApiGet<{
-      openId?: string;
-      nickname?: string;
-      nickName?: string;
-      avatarUrl?: string;
-      avatar?: string;
-    }>(path, {}, accessToken);
-    if (!data) continue;
-    return {
-      openId: data.openId,
-      nickname: data.nickname || data.nickName,
-      avatar: data.avatarUrl || data.avatar,
-    };
-  }
-  return null;
-}
-
-export async function logoutNeteaseUser() {
-  await clearNeteaseUserSession();
-  clientTokenCache = null;
+/** 应用级匿名 accessToken */
+export async function resolveOpenApiAccessToken(): Promise<string | null> {
+  return fetchClientAccessToken();
 }
 
 export async function getNeteaseAuthStatus(): Promise<NeteaseAuthStatus> {
   if (!isNeteaseOpenApiConfigured()) {
     return {
       configured: false,
-      loggedIn: false,
       tokenKind: 'none',
       message: getNeteaseOpenConfigHint(),
-    };
-  }
-
-  const user = await loadNeteaseUserSession();
-  const now = Date.now();
-  if (user?.accessToken && user.expireAt > now) {
-    return {
-      configured: true,
-      loggedIn: true,
-      tokenKind: 'user',
-      user: {
-        nickname: user.nickname,
-        avatar: user.avatar,
-        openId: user.openId,
-        expireAt: user.expireAt,
-        loginAt: user.loginAt,
-      },
     };
   }
 
   const client = await fetchClientAccessToken();
   return {
     configured: true,
-    loggedIn: false,
     tokenKind: client ? 'client' : 'none',
     message: client
-      ? '默认使用匿名 token；使用网易云 App 扫码登录后可获取更高播放权限'
+      ? '个人开发者 CLI 模式：使用匿名 token 搜索与播放（VIP 曲目可能仅试听）'
       : '无法获取匿名 token，请检查开放平台凭证',
   };
 }
 
-/** 二维码有效期（官方约 2 分钟） */
-export const NETEASE_QR_TTL_MS = 120_000;
-
-export const NETEASE_QR_DOC =
-  'https://developer.music.163.com/st/developer/document?docId=2bb12a93e71a4be0842243b930c2f33c';
-
-function pickUnikey(data: Record<string, unknown> | null | undefined): string {
-  if (!data) return '';
-  const key = data.unikey ?? data.uniKey ?? data.key ?? data.qrKey;
-  return key ? String(key) : '';
-}
-
-function pickStatusCode(data: Record<string, unknown> | null | undefined): number {
-  if (!data) return 0;
-  const raw = data.code ?? data.status ?? data.loginCode ?? data.scanCode;
-  if (typeof raw === 'number') return raw;
-  const n = parseInt(String(raw), 10);
-  return Number.isFinite(n) ? n : 0;
-}
-
-async function saveUserSessionFromTokenPayload(
-  data: Record<string, unknown>,
-  parsed: { accessToken: string; refreshToken?: string; expireAt: number }
-): Promise<NeteaseUserSession> {
-  let session: NeteaseUserSession = {
-    accessToken: parsed.accessToken,
-    refreshToken: parsed.refreshToken,
-    expireAt: parsed.expireAt,
-    openId: data.openId ? String(data.openId) : undefined,
-    nickname: data.nickname ? String(data.nickname) : data.nickName ? String(data.nickName) : undefined,
-    avatar: data.avatarUrl ? String(data.avatarUrl) : data.avatar ? String(data.avatar) : undefined,
-    loginAt: Date.now(),
-  };
-  const profile = await fetchOpenApiUserProfile(parsed.accessToken);
-  if (profile) session = { ...session, ...profile };
-  await saveNeteaseUserSession(session);
-  clientTokenCache = null;
-  return session;
-}
-
-/** 生成扫码登录 unikey（CLI 开放平台二维码登录，需先匿名登录） */
-export async function createOpenApiQrLogin(): Promise<{
-  unikey: string;
-  qrCodeUrl?: string;
-  message?: string;
-}> {
-  if (!isNeteaseOpenApiConfigured()) {
-    return { unikey: '', message: '未配置开放平台凭证' };
-  }
-
-  const clientToken = await fetchClientAccessToken();
-  if (!clientToken) {
-    return { unikey: '', message: '无法获取匿名 token，请检查 AppID / AppSecret / 私钥' };
-  }
-
-  const paths = [
-    '/openapi/music/basic/user/oauth2/qrcodekey/get/v2',
-    '/openapi/oauth2/login/qrcode/unikey/get/v2',
-    '/openapi/oauth2/qrcode/unikey/get/v2',
-  ];
-  const bizVariants: Record<string, unknown>[] = [
-    { type: 2, expiredKey: '300' },
-    { type: 2 },
-    { type: 1 },
-    {},
-  ];
-
-  for (const apiPath of paths) {
-    for (const biz of bizVariants) {
-      const data = await openApiGet<Record<string, unknown>>(apiPath, biz, clientToken);
-      const unikey = pickUnikey(data);
-      if (unikey) {
-        const qrCodeUrl =
-          typeof data?.qrCodeUrl === 'string'
-            ? data.qrCodeUrl
-            : typeof data?.qrcodeUrl === 'string'
-              ? data.qrcodeUrl
-              : undefined;
-        return { unikey, qrCodeUrl };
-      }
-    }
-  }
-
-  return { unikey: '', message: '无法生成登录二维码，请确认应用已开通二维码登录能力' };
-}
-
-export type NeteaseQrPollStatus = 'waiting' | 'scanned' | 'expired' | 'success' | 'error';
-
-/** 轮询扫码状态；803 为登录成功 */
-export async function pollOpenApiQrLogin(unikey: string): Promise<{
-  status: NeteaseQrPollStatus;
-  message?: string;
-  session?: NeteaseUserSession;
-}> {
-  if (!unikey) return { status: 'error', message: '缺少二维码 key' };
-
-  const clientToken = await fetchClientAccessToken();
-
-  const paths = [
-    '/openapi/music/basic/user/oauth2/qrcodekey/check/get/v2',
-    '/openapi/music/basic/user/oauth2/qrcodekey/unikey/check/get/v2',
-    '/openapi/music/basic/user/oauth2/qrcodekey/scan/get/v2',
-    '/openapi/oauth2/login/qrcode/client/login/get/v2',
-    '/openapi/oauth2/qrcode/client/login/get/v2',
-    '/openapi/oauth2/qrcode/check/get/v2',
-  ];
-  const bizVariants: Record<string, unknown>[] = [
-    { uniKey: unikey, type: 2 },
-    { key: unikey, type: 2 },
-    { unikey, type: 2 },
-    { key: unikey, type: 1 },
-    { unikey, type: 1 },
-    { key: unikey },
-  ];
-
-  for (const apiPath of paths) {
-    for (const biz of bizVariants) {
-      for (const request of [
-        () => openApiRequest<Record<string, unknown>>(apiPath, biz, clientToken ?? undefined),
-        () => openApiPostJson<Record<string, unknown>>(apiPath, biz, clientToken ?? undefined),
-      ]) {
-        const result = await request();
-        if (!result.ok || !result.data) continue;
-
-        const data = result.data;
-        const code = pickStatusCode(data);
-
-        if (code === 800) return { status: 'expired', message: '二维码已过期，请刷新后重试' };
-        if (code === 801) return { status: 'waiting', message: '请使用网易云音乐 App 扫码' };
-        if (code === 802) return { status: 'scanned', message: '已扫码，请在手机上确认登录' };
-
-        const directToken = data.accessToken || data.token;
-        if (code === 803 || (typeof directToken === 'string' && directToken)) {
-          const parsed = parseTokenPayload({
-            accessToken: typeof directToken === 'string' ? directToken : undefined,
-            token: typeof data.token === 'string' ? data.token : undefined,
-            refreshToken: typeof data.refreshToken === 'string' ? data.refreshToken : undefined,
-            expireTime: typeof data.expireTime === 'number' ? data.expireTime : undefined,
-            expiresIn: typeof data.expiresIn === 'number' ? data.expiresIn : undefined,
-          });
-          if (parsed) {
-            const session = await saveUserSessionFromTokenPayload(data, parsed);
-            return { status: 'success', session };
-          }
-
-          const exchanged = await exchangeQrKeyForUserToken(unikey, clientToken ?? undefined);
-          if (exchanged.session) return { status: 'success', session: exchanged.session };
-          return { status: 'error', message: exchanged.message || '扫码成功但换取 token 失败' };
-        }
-      }
-    }
-  }
-
-  return { status: 'waiting', message: '等待扫码…' };
-}
-
-async function exchangeQrKeyForUserToken(unikey: string, clientToken?: string) {
-  const paths = [
-    '/openapi/music/basic/user/oauth2/qrcodekey/access/token/get/v2',
-    '/openapi/oauth2/login/qrcode/access/token/get/v2',
-    '/openapi/oauth2/qrcode/access/token/get/v2',
-    '/openapi/oauth2/qrcode/token/get/v2',
-  ];
-  const bizVariants: Record<string, unknown>[] = [
-    { uniKey: unikey, type: 2 },
-    { key: unikey, type: 2 },
-    { unikey, type: 2 },
-    { key: unikey, type: 1 },
-    { unikey, type: 1 },
-    { key: unikey },
-  ];
-
-  for (const apiPath of paths) {
-    for (const biz of bizVariants) {
-      const result = await openApiRequest<Record<string, unknown>>(apiPath, biz, clientToken);
-      if (!result.ok || !result.data) continue;
-      const parsed = parseTokenPayload({
-        accessToken:
-          typeof result.data.accessToken === 'string' ? result.data.accessToken : undefined,
-        token: typeof result.data.token === 'string' ? result.data.token : undefined,
-        refreshToken:
-          typeof result.data.refreshToken === 'string' ? result.data.refreshToken : undefined,
-        expireTime:
-          typeof result.data.expireTime === 'number' ? result.data.expireTime : undefined,
-        expiresIn: typeof result.data.expiresIn === 'number' ? result.data.expiresIn : undefined,
-      });
-      if (!parsed) continue;
-      const session = await saveUserSessionFromTokenPayload(result.data, parsed);
-      return { session };
-    }
-  }
-  return { session: null, message: '二维码登录换 token 失败' };
-}
-
-export function buildNeteaseQrImageUrl(unikey: string, qrCodeUrl?: string) {
-  const qrUrl = qrCodeUrl || `https://music.163.com/login?codekey=${encodeURIComponent(unikey)}`;
-  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrUrl)}`;
-  return { qrUrl, qrImageUrl };
-}
-
 export async function fetchOpenApiSongDetail(songId: string) {
-  const resolved = await resolveOpenApiAccessToken();
-  if (!resolved) return null;
+  const accessToken = await resolveOpenApiAccessToken();
+  if (!accessToken) return null;
 
   const paths = [
     '/openapi/music/basic/song/detail/get/v2',
@@ -721,7 +319,7 @@ export async function fetchOpenApiSongDetail(songId: string) {
       album?: { name?: string; picUrl?: string };
       coverUrl?: string;
       picUrl?: string;
-    }>(path, { songId }, resolved.token);
+    }>(path, { songId }, accessToken);
 
     if (!data) continue;
     const name = data.songName || data.name;
@@ -742,10 +340,9 @@ export async function fetchOpenApiSongDetail(songId: string) {
 }
 
 export async function fetchOpenApiPlayUrl(songId: string): Promise<string | null> {
-  const resolved = await resolveOpenApiAccessToken();
-  if (!resolved) return null;
+  const accessToken = await resolveOpenApiAccessToken();
+  if (!accessToken) return null;
 
-  const quality = resolved.kind === 'user' ? 'exhigh' : 'standard';
   const paths = [
     '/openapi/music/basic/song/playurl/get/v2',
     '/openapi/music/basic/song/url/get/v2',
@@ -755,8 +352,8 @@ export async function fetchOpenApiPlayUrl(songId: string): Promise<string | null
   for (const path of paths) {
     const data = await openApiGet<{ url?: string; playUrl?: string; data?: { url?: string }[] }>(
       path,
-      { songId, quality },
-      resolved.token
+      { songId, quality: 'standard' },
+      accessToken
     );
     if (!data) continue;
     if (typeof data.url === 'string' && data.url) return data.url;
@@ -768,41 +365,13 @@ export async function fetchOpenApiPlayUrl(songId: string): Promise<string | null
 }
 
 export async function fetchOpenApiLyric(songId: string): Promise<string | null> {
-  const resolved = await resolveOpenApiAccessToken();
-  if (!resolved) return null;
+  const accessToken = await resolveOpenApiAccessToken();
+  if (!accessToken) return null;
 
   const data = await openApiGet<{ lyric?: string; lrc?: string }>(
     '/openapi/music/basic/song/lyric/get/v2',
     { songId },
-    resolved.token
+    accessToken
   );
   return data?.lyric || data?.lrc || null;
-}
-
-/** 用户收藏/创建的歌单（需用户登录） */
-export async function fetchOpenApiUserPlaylists(limit = 30) {
-  const resolved = await resolveOpenApiAccessToken();
-  if (!resolved || resolved.kind !== 'user') return null;
-
-  const paths = [
-    '/openapi/music/basic/playlist/created/get/v2',
-    '/openapi/music/basic/user/playlist/get/v2',
-  ];
-
-  for (const path of paths) {
-    const data = await openApiGet<{
-      records?: { id?: string | number; name?: string; coverImgUrl?: string; trackCount?: number }[];
-      list?: { id?: string | number; name?: string; coverImgUrl?: string; trackCount?: number }[];
-    }>(path, { limit }, resolved.token);
-
-    const list = data?.records || data?.list;
-    if (!Array.isArray(list)) continue;
-    return list.map((p) => ({
-      id: String(p.id ?? ''),
-      name: p.name || '未命名歌单',
-      cover: p.coverImgUrl || '',
-      trackCount: p.trackCount ?? 0,
-    }));
-  }
-  return null;
 }
