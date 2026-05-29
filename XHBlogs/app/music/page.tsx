@@ -1,5 +1,5 @@
 import MusicClient from "./MusicClient";
-import { getRuntimeSiteConfig } from "../lib/runtime-site-config";
+import { getRuntimeSiteConfig } from "../../lib/runtime-site-config";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;

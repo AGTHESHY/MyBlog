@@ -5,13 +5,13 @@ import Comments from './Comments';
 import { useSiteConfig } from './SiteConfigProvider';
 
 export default function AboutClient({
-  const siteConfig = useSiteConfig();
   contentHtml,
   coverImage,
 }: {
   contentHtml: string;
   coverImage: string;
 }) {
+  const siteConfig = useSiteConfig();
   return (
     <div className="bg-white/60 dark:bg-slate-800/50 backdrop-blur-xl rounded-[40px] shadow-2xl border border-white/40 dark:border-white/10 overflow-hidden transition-colors duration-700 relative">
       <div className="w-full h-40 sm:h-48 md:h-64 relative bg-slate-200 dark:bg-slate-700 overflow-hidden group">
