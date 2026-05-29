@@ -21,7 +21,7 @@ export default function FloatingPlayer() {
   const isHidden = pathname === '/';
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9999]" style={{ pointerEvents: 'none' }}>
+    <div className="fixed bottom-6 left-[4.5rem] sm:left-20 z-[9999]" style={{ pointerEvents: 'none' }}>
       <motion.div
         drag
         dragMomentum={false} // 取消惯性

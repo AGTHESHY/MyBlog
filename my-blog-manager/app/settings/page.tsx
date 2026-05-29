@@ -53,10 +53,12 @@ function SettingsContent() {
     footerBadges: [...(siteConfig.footerBadges || [])],
     // 👇 🌟 初始化小猫 AI 配置数据
     geminiConfig: siteConfig.geminiConfig || {
-      modelId: 'gemini-2.5-flash-lite',
+      base_url: 'https://api.openai.com/v1',
+      api_key: '',
+      model_name: 'gpt-4o-mini',
       systemPrompt: '',
-      maxOutputTokens: 150,
-      temperature: 0.85
+      max_tokens: 150,
+      temperature: 0.85,
     }
   });
 
@@ -307,7 +309,7 @@ function SettingsContent() {
             </div>
           </div>
 
-          <div className="flex-1 w-full">
+          <div className={`flex-1 w-full ${activeTab === 'aicat' ? 'xl:pr-36' : ''}`}>
             <AnimatePresence mode="wait">
               {activeTab === 'profile' && <ProfileSection key="profile" formData={formData} handleUpdate={handleUpdate} pushToQueue={pushToQueue} />}
               {activeTab === 'background' && <BackgroundSection key="background" formData={formData} handleUpdate={handleUpdate} pushToQueue={pushToQueue} />}

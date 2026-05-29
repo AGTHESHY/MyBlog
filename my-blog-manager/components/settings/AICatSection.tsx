@@ -1,41 +1,78 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Save, Bot, Sparkles, Sliders, MessageSquareText, Cpu } from 'lucide-react';
+import { Save, Bot, Sparkles, Sliders, MessageSquareText, Link2, KeyRound, Cpu, Loader2 } from 'lucide-react';
+import { useToast } from '../ToastProvider';
+import {
+  AI_PROVIDER_PRESETS,
+  ensureOpenAiV1BaseUrl,
+  parseGeminiConfigForEdit,
+  type AiCatConfig,
+} from '../../lib/ai-cat-config-shared';
 
-export default function AICatSection({ formData, handleUpdate, pushToQueue }: any) {
-  // 防止 undefined
-  const config = formData.geminiConfig || {
-    modelId: 'gemini-2.5-flash-lite',
-    systemPrompt: '',
-    maxOutputTokens: 150,
-    temperature: 0.85
-  };
+export default function AICatSection({
+  formData,
+  handleUpdate,
+}: {
+  formData: any;
+  handleUpdate: (k: string, v: unknown) => void;
+  pushToQueue?: (label: string, key?: string, value?: unknown) => void;
+}) {
+  const { showToast } = useToast();
+  const [draft, setDraft] = useState<AiCatConfig>(() => parseGeminiConfigForEdit(formData.geminiConfig));
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const lastExternalRef = useRef<string>('');
 
-  // 🌟 核心防崩魔法：将系统提示词的状态独立出来
-  const [localPrompt, setLocalPrompt] = useState('');
-
-  // 初始化时，如果后端传来的是安全转义的 \n，我们把它还原成真实的换行，让文本框正常显示
+  // 仅从父级拉取配置时同步（如首次打开设置页），避免输入中被默认值覆盖
   useEffect(() => {
-    if (config.systemPrompt) {
-      setLocalPrompt(config.systemPrompt.replace(/\\n/g, '\n'));
-    }
-  }, []); // 仅挂载时同步一次，防止死循环
+    const serialized = JSON.stringify(formData.geminiConfig ?? {});
+    if (serialized === lastExternalRef.current) return;
+    lastExternalRef.current = serialized;
+    setDraft(parseGeminiConfigForEdit(formData.geminiConfig));
+  }, [formData.geminiConfig]);
 
-  const updateConfig = (key: string, value: any) => {
-    handleUpdate('geminiConfig', { ...config, [key]: value });
+  const patchDraft = (patch: Partial<AiCatConfig>) => {
+    setDraft((prev) => ({ ...prev, ...patch }));
   };
 
-  // 🌟 拦截文本框输入
-  const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const realText = e.target.value;
-    setLocalPrompt(realText); // 文本框里保持真实的物理换行，方便你阅读和编辑
+  const applyPreset = (preset: (typeof AI_PROVIDER_PRESETS)[number]) => {
+    patchDraft({
+      base_url: preset.base_url,
+      model_name: preset.model_name,
+    });
+    showToast(`已套用「${preset.name}」`, 'info');
+  };
 
-    // ⚠️ 传给父组件和队列时，强行把物理换行替换为单行字面量 "\\n"
-    // 这样 Python 写文件时就是安全的： systemPrompt: "第一行\n第二行" (不会断裂)
-    const safeTextForBackend = realText.replace(/\n/g, '\\n');
-    updateConfig('systemPrompt', safeTextForBackend);
+  const buildPayload = (): AiCatConfig => ({
+    ...draft,
+    base_url: draft.base_url.trim() ? ensureOpenAiV1BaseUrl(draft.base_url) : '',
+    systemPrompt: draft.systemPrompt.replace(/\n/g, '\\n'),
+  });
+
+  const handleSaveToDb = async () => {
+    setSaving(true);
+    try {
+      const payload = buildPayload();
+      const res = await fetch('/api/config/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates: { geminiConfig: payload } }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || '保存失败');
+      }
+      lastExternalRef.current = JSON.stringify(payload);
+      handleUpdate('geminiConfig', payload);
+      setDraft(parseGeminiConfigForEdit(payload));
+      showToast('煤球 AI 配置已保存到数据库，立即生效', 'success');
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : '保存失败', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -43,96 +80,152 @@ export default function AICatSection({ formData, handleUpdate, pushToQueue }: an
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.4, type: 'spring', stiffness: 100 }}
       className="bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl border border-white/50 dark:border-slate-800/50 rounded-[40px] p-8 shadow-xl"
     >
-      <div className="flex justify-between items-center mb-8 pb-6 border-b border-white/40 dark:border-slate-700/50">
+      <div className="flex justify-between items-center mb-8 pb-6 border-b border-white/40 dark:border-slate-700/50 flex-wrap gap-4">
         <div>
-          <h2 className="text-2xl font-black text-slate-800 dark:text-white flex items-center gap-3 tracking-tight">
-            <Bot className="text-indigo-500" size={28} /> AI 煤球性格调度中心
+          <h2 className="text-2xl font-black text-slate-800 dark:text-white flex items-center gap-3">
+            <Bot className="text-indigo-500" size={28} /> AI 煤球配置
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 font-medium mt-2 flex items-center gap-1.5">
-            <Sparkles size={14} className="text-indigo-400" /> 实时重塑你的专属 AI 助理灵魂
+          <p className="text-sm text-slate-500 dark:text-slate-400 font-medium mt-2">
+            base_url + api_key + model_name，保存时自动补全 /v1（若尚未包含版本路径）
           </p>
         </div>
         <button
-          onClick={() => pushToQueue('AI 小猫配置')}
-          className="px-6 py-3 bg-indigo-500 hover:bg-indigo-600 text-white font-black rounded-2xl shadow-lg shadow-indigo-500/30 transition-all flex items-center gap-2 text-sm"
+          onClick={handleSaveToDb}
+          disabled={saving}
+          className="px-6 py-3 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-60 text-white font-black rounded-2xl shadow-lg shadow-indigo-500/30 transition-all flex items-center gap-2 text-sm"
         >
-          <Save size={16} /> 暂存至队列
+          {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+          保存到数据库
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-8">
-        {/* 模型 ID */}
-        <div className="group">
-          <label className="flex items-center gap-2 text-sm font-black text-slate-700 dark:text-slate-300 mb-3">
-            <Cpu size={16} className="text-slate-400 group-focus-within:text-indigo-500 transition-colors" /> 模型核心引擎 (Model ID)
+      <div className="mb-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-xs text-slate-600 dark:text-slate-300 space-y-1">
+        <p className="font-black text-emerald-600 dark:text-emerald-400">无需再改 .env</p>
+        <p>在网页填写 api_key 后保存即可。base_url 可只填域名，保存时会自动补上 /v1（已有 /v1、/v4 等则不会改动）。</p>
+      </div>
+
+      <div className="mb-6 flex flex-wrap gap-2">
+        {AI_PROVIDER_PRESETS.map((p) => (
+          <button
+            key={p.name}
+            type="button"
+            onClick={() => applyPreset(p)}
+            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/60 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700 hover:border-indigo-400 hover:text-indigo-600 transition-colors"
+          >
+            {p.name}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-6">
+        <div>
+          <label className="flex items-center gap-2 text-sm font-black text-slate-700 dark:text-slate-300 mb-2">
+            <Link2 size={16} className="text-slate-400" /> base_url
           </label>
           <input
             type="text"
-            value={config.modelId}
-            onChange={(e) => updateConfig('modelId', e.target.value)}
-            className="w-full bg-white/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700/50 rounded-2xl py-3.5 px-5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 font-medium"
-            placeholder="例如: gemini-2.5-flash-lite"
+            value={draft.base_url}
+            onChange={(e) => patchDraft({ base_url: e.target.value })}
+            className="w-full bg-white/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700/50 rounded-2xl py-3 px-5 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+            placeholder="https://api.openai.com/v1"
+            autoComplete="off"
           />
-          <p className="text-[11px] text-slate-400 mt-2 ml-1">推荐使用默认的轻量级模型，响应速度最快。</p>
+          <p className="text-[11px] text-slate-400 mt-1.5 ml-1">
+            示例：https://api.openai.com/v1 或 https://api.deepseek.com（保存时无 /v1 会自动补上）
+          </p>
         </div>
 
-        {/* System Prompt */}
-        <div className="group">
-          <label className="flex items-center gap-2 text-sm font-black text-slate-700 dark:text-slate-300 mb-3">
-            <MessageSquareText size={16} className="text-slate-400 group-focus-within:text-indigo-500 transition-colors" /> 灵魂 Prompt (性格设定)
+        <div>
+          <label className="flex items-center gap-2 text-sm font-black text-slate-700 dark:text-slate-300 mb-2">
+            <KeyRound size={16} className="text-slate-400" /> api_key
+          </label>
+          <div className="flex gap-2">
+            <input
+              type={showApiKey ? 'text' : 'password'}
+              value={draft.api_key}
+              onChange={(e) => patchDraft({ api_key: e.target.value })}
+              className="flex-1 bg-white/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700/50 rounded-2xl py-3 px-5 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+              placeholder="sk-xxxxxxxx"
+              autoComplete="off"
+            />
+            <button
+              type="button"
+              onClick={() => setShowApiKey((v) => !v)}
+              className="px-4 rounded-2xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+            >
+              {showApiKey ? '隐藏' : '显示'}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label className="flex items-center gap-2 text-sm font-black text-slate-700 dark:text-slate-300 mb-2">
+            <Cpu size={16} className="text-slate-400" /> model_name
+          </label>
+          <input
+            type="text"
+            value={draft.model_name}
+            onChange={(e) => patchDraft({ model_name: e.target.value })}
+            className="w-full bg-white/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700/50 rounded-2xl py-3 px-5 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+            placeholder="gpt-4o-mini / deepseek-chat"
+            autoComplete="off"
+          />
+        </div>
+
+        <div>
+          <label className="flex items-center gap-2 text-sm font-black text-slate-700 dark:text-slate-300 mb-2">
+            <MessageSquareText size={16} className="text-slate-400" /> system_prompt（煤球性格）
           </label>
           <textarea
-            value={localPrompt} // 🌟 绑定本地的安全显示状态
-            onChange={handlePromptChange} // 🌟 使用我们写的拦截函数
-            className="w-full bg-white/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700/50 rounded-2xl py-4 px-5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 min-h-[200px] resize-y font-medium text-sm leading-relaxed custom-scrollbar"
-            placeholder="输入 AI 的性格、行为模式和约束..."
+            value={draft.systemPrompt}
+            onChange={(e) => patchDraft({ systemPrompt: e.target.value })}
+            className="w-full bg-white/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700/50 rounded-2xl py-4 px-5 min-h-[180px] resize-y text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-500/50 custom-scrollbar"
+            placeholder="例如：你是一只叫煤球的猫，说话简短，句尾加「喵~」…"
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Max Tokens */}
-          <div className="group">
-            <div className="flex justify-between items-center mb-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <div className="flex justify-between items-center mb-2">
               <label className="flex items-center gap-2 text-sm font-black text-slate-700 dark:text-slate-300">
-                <Sliders size={16} className="text-slate-400" /> 最大回复字数 (Tokens)
+                <Sliders size={16} /> max_tokens
               </label>
-              <span className="text-xs font-black text-indigo-500 bg-indigo-500/10 px-2 py-1 rounded-md">{config.maxOutputTokens}</span>
+              <span className="text-xs font-black text-indigo-500 bg-indigo-500/10 px-2 py-1 rounded-md">
+                {draft.max_tokens}
+              </span>
             </div>
             <input
               type="range"
               min="50"
-              max="1000"
+              max="2000"
               step="10"
-              value={config.maxOutputTokens}
-              onChange={(e) => updateConfig('maxOutputTokens', Number(e.target.value))}
-              className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+              value={draft.max_tokens}
+              onChange={(e) => patchDraft({ max_tokens: Number(e.target.value) })}
+              className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg accent-indigo-500 cursor-pointer"
             />
           </div>
-
-          {/* Temperature */}
-          <div className="group">
-            <div className="flex justify-between items-center mb-3">
+          <div>
+            <div className="flex justify-between items-center mb-2">
               <label className="flex items-center gap-2 text-sm font-black text-slate-700 dark:text-slate-300">
-                <Sparkles size={16} className="text-slate-400" /> 模型发散度 (Temperature)
+                <Sparkles size={16} /> temperature
               </label>
-              <span className="text-xs font-black text-indigo-500 bg-indigo-500/10 px-2 py-1 rounded-md">{config.temperature}</span>
+              <span className="text-xs font-black text-indigo-500 bg-indigo-500/10 px-2 py-1 rounded-md">
+                {draft.temperature}
+              </span>
             </div>
             <input
               type="range"
               min="0"
               max="2"
               step="0.05"
-              value={config.temperature}
-              onChange={(e) => updateConfig('temperature', Number(e.target.value))}
-              className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+              value={draft.temperature}
+              onChange={(e) => patchDraft({ temperature: Number(e.target.value) })}
+              className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg accent-indigo-500 cursor-pointer"
             />
-            <p className="text-[11px] text-slate-400 mt-2">数值越大，猫咪说话越随机、越具创意；数值越小越严谨。</p>
           </div>
         </div>
-
       </div>
     </motion.div>
   );
